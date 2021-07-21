@@ -15,3 +15,6 @@ rules_proto_grpc_repos()
 load("@rules_proto//proto:repositories.bzl", "rules_proto_dependencies", "rules_proto_toolchains")
 rules_proto_dependencies()
 rules_proto_toolchains()
+
+load("@io_opentelemetry_cpp//bazel:repository.bzl", "opentelemetry_cpp_deps")
+opentelemetry_cpp_deps()

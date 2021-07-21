@@ -103,6 +103,8 @@ std::string TracingUtility::injectSpanContextToTraceParent(const trace::SpanCont
   return hex_string;
 }
 
+
+
 // Assumed that all span context is remote.
 trace::SpanContext TracingUtility::extractContextFromTraceParent(const std::string& trace_parent) {
   if (trace_parent.length() != kHeaderSize || trace_parent[kHeaderElementLengths[0]] != '-' ||
@@ -132,6 +134,38 @@ trace::SpanContext TracingUtility::extractContextFromTraceParent(const std::stri
   trace::SpanId span_id_obj = TracingUtility::generateSpanIdFromString(span_id);
   trace::TraceFlags trace_flags_obj = generateTraceFlagsFromString(trace_flags);
   return trace::SpanContext(trace_id_obj, span_id_obj, trace_flags_obj, true);
+}
+
+std::string TracingUtility::serializeSpanId(const trace::SpanId span_id) {
+  char span_id0[16];
+  span_id.ToLowerBase16(span_id0);
+  std::string hex_string;
+  for (char i : span_id0) {
+    hex_string.push_back(i);
+  }
+  return hex_string;
+}
+
+trace::StatusCode TracingUtility::convertToTraceStatus(const HookPointStatus status) {
+  switch(status) {
+  case OK:
+    return trace::StatusCode::kOk;
+  case ERROR:
+    return trace::StatusCode::kError;
+  case UNSET:
+    return trace::StatusCode::kUnset;
+  }
+}
+
+std::string TracingUtility::convertMessageKeysVectorToString(const std::vector<std::string> keys) {
+  std::string keys_string;
+  for (auto& key : keys) {
+    keys_string.append(key);
+    keys_string.append(" ");
+  }
+  if (keys_string.length() > 0) {
+    return keys_string.substr(0, keys_string.length() - 1);
+  }
 }
 
 ROCKETMQ_NAMESPACE_END

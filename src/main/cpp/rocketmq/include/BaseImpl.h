@@ -1,6 +1,13 @@
 #include "ClientInstance.h"
 #include "rocketmq/State.h"
 
+#ifdef ENABLE_TRACING
+#include "opentelemetry/exporters/otlp/otlp_exporter.h"
+#include "opentelemetry/sdk/trace/batch_span_processor.h"
+#include "opentelemetry/sdk/trace/tracer_provider.h"
+#include "opentelemetry/trace/provider.h"
+#endif
+
 ROCKETMQ_NAMESPACE_BEGIN
 
 class BaseImpl : public ClientConfig, public ClientCallback {
@@ -24,6 +31,13 @@ public:
   virtual void prepareHeartbeatData(HeartbeatRequest& request) = 0;
 
   void heartbeat() override;
+
+#ifdef ENABLE_TRACING
+  opentelemetry::nostd::shared_ptr<opentelemetry::trace::Tracer> getTracer();
+
+  opentelemetry::nostd::shared_ptr<opentelemetry::trace::TracerProvider> trace_provider_shared_ptr_{
+      new opentelemetry::trace::NoopTracerProvider};
+#endif
 
 protected:
   ClientInstancePtr client_instance_;
@@ -60,6 +74,10 @@ protected:
 
   void updateRouteInfo() LOCKS_EXCLUDED(topic_route_table_mtx_);
 
+#ifdef ENABLE_TRACING
+  void updateTraceProvider();
+#endif
+
 private:
   /**
    * This is a low-level API that fetches route data from name server through gRPC unary request/response. Once
@@ -86,6 +104,14 @@ private:
    */
   void updateRouteCache(const std::string& topic, const TopicRouteDataPtr& route)
       LOCKS_EXCLUDED(topic_route_table_mtx_);
+
+
+
+#ifdef ENABLE_TRACING
+  std::string tracing_exporter_endpoints_;
+
+  opentelemetry::nostd::shared_ptr<opentelemetry::trace::Tracer> tracer_{nullptr};
+#endif
 };
 
 ROCKETMQ_NAMESPACE_END

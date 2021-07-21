@@ -8,6 +8,7 @@
 # Startup options cannot be selected via config.
 startup --host_jvm_args=-Xmx4g
 
+build --copt -DENABLE_TRACING=1
 build --host_force_python=PY3
 build --host_javabase=@bazel_tools//tools/jdk:remote_jdk11
 build --javabase=@bazel_tools//tools/jdk:remote_jdk11

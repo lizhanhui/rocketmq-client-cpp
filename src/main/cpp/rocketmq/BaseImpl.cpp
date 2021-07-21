@@ -2,8 +2,12 @@
 #include "ClientManager.h"
 #include "Signature.h"
 #include "absl/strings/str_join.h"
+#include <random>
+#include <iostream>
 
 ROCKETMQ_NAMESPACE_BEGIN
+
+using namespace opentelemetry;
 
 BaseImpl::BaseImpl(std::string group_name)
     : ClientConfig(std::move(group_name)), state_(State::CREATED), top_addressing_(absl::make_unique<TopAddressing>()) {
@@ -237,13 +241,61 @@ void BaseImpl::updateRouteInfo() {
       fetchRouteFor(topic, std::bind(&BaseImpl::updateRouteCache, this, topic, std::placeholders::_1));
     }
   }
-
-#ifdef ENABLE_TRACING
-  updateTraceProvider();
-#endif
-
   SPDLOG_DEBUG("Topic route info updated");
 }
+
+#ifdef ENABLE_TRACING
+nostd::shared_ptr<trace::Tracer> BaseImpl::getTracer() {
+  if (nullptr == trace_provider_shared_ptr_) {
+    return nostd::shared_ptr<trace::Tracer>(nullptr);
+  }
+  return trace_provider_shared_ptr_->GetTracer("RocketmqClient");
+}
+
+void BaseImpl::updateTraceProvider() {
+  SPDLOG_DEBUG("Start to update global trace provider");
+  absl::flat_hash_set<std::string> exporter_endpoints_set;
+  {
+    absl::MutexLock lock(&topic_route_table_mtx_);
+    for (const auto& route_entry : topic_route_table_) {
+      for (const auto& partition : route_entry.second->partitions()) {
+        const std::string& broker_name = partition.broker().name();
+        if (MixAll::MASTER_BROKER_ID != partition.broker().id()) {
+          continue;
+        }
+        exporter_endpoints_set.insert(partition.broker().serviceAddress());
+      }
+    }
+    if (exporter_endpoints_set.empty()) {
+      SPDLOG_INFO("No available tracing endpoints.");
+      return;
+    }
+  }
+  if (!tracing_exporter_endpoints_.empty() && exporter_endpoints_set.contains(tracing_exporter_endpoints_)) {
+    SPDLOG_INFO("Tracing endpoints remains unchanged");
+    return;
+  }
+  std::vector<std::string> exporter_endpoints_list(exporter_endpoints_set.begin(), exporter_endpoints_set.end());
+  // Pick up tracing endpoints randomly.
+  std::random_device rd;
+  auto rng = std::default_random_engine{rd()};
+  std::shuffle(std::begin(exporter_endpoints_list), std::end(exporter_endpoints_list), rng);
+  auto exporter_endpoints = exporter_endpoints_list[0];
+
+  exporter::otlp::OtlpExporterOptions exporter_options;
+  exporter_options.endpoint = exporter_endpoints;
+  auto exporter = std::unique_ptr<sdk::trace::SpanExporter>(new exporter::otlp::OtlpExporter(exporter_options));
+
+  sdk::trace::BatchSpanProcessorOptions options{};
+  options.max_queue_size = 32768;
+  options.max_export_batch_size = 16384;
+  options.schedule_delay_millis = std::chrono::milliseconds(1000);
+
+  auto processor =
+      std::shared_ptr<sdk::trace::SpanProcessor>(new sdk::trace::BatchSpanProcessor(std::move(exporter), options));
+  trace_provider_shared_ptr_ = nostd::shared_ptr<trace::TracerProvider>(new sdk::trace::TracerProvider(processor));
+}
+#endif
 
 void BaseImpl::heartbeat() {
   absl::flat_hash_set<std::string> hosts;
@@ -315,6 +367,10 @@ void BaseImpl::updateRouteCache(const std::string& topic, const TopicRouteDataPt
       }
     }
   }
+
+  #ifdef ENABLE_TRACING
+    updateTraceProvider();
+  #endif
 }
 
 ROCKETMQ_NAMESPACE_END

@@ -120,10 +120,6 @@ public:
 
   void setThrottle(const std::string& topic, uint32_t threshold);
 
-#ifdef ENABLE_TRACING
-  nostd::shared_ptr<trace::Tracer> getTracer();
-#endif
-
   MessageModel messageModel() const { return message_model_; }
 
   void setMessageModel(MessageModel message_model) { message_model_ = message_model; }

@@ -7,7 +7,7 @@ def rocketmq_deps():
     """Loads dependencies need to compile and test the RocketMQ library."""
     native.bind(
         name = "opentelementry_api",
-        actual = "@com_github_opentelemetry//api:api",
+        actual = "@io_opentelemetry_cpp//api:api",
     )
 
     if "com_google_googletest" not in native.existing_rules():
@@ -118,12 +118,11 @@ def rocketmq_deps():
             urls = ["https://github.com/grpc/grpc/archive/v1.38.0.tar.gz"],
         )
 
-    if "com_github_opentelemetry" not in native.existing_rules():
+    if "io_opentelemetry_cpp" not in native.existing_rules():
         http_archive(
-            name = "com_github_opentelemetry",
-            sha256 = "2b5b423096c6e486ec23e77d0d75b28e32f86e7cdf6e7560da686c71c69908d3",
-            strip_prefix = "opentelemetry-cpp-1.0.0-rc2",
+            name = "io_opentelemetry_cpp",
+            strip_prefix = "opentelemetry-cpp-lingchu-fix-05",
             urls = [
-                "https://github.com/open-telemetry/opentelemetry-cpp/archive/refs/tags/v1.0.0-rc2.tar.gz",
+                "https://github.com/aaron-ai/opentelemetry-cpp/archive/refs/tags/lingchu-fix-05.tar.gz",
             ],
         )

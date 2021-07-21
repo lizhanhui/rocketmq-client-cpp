@@ -1,7 +1,10 @@
 #pragma once
 #ifdef ENABLE_TRACING
+
+#include "opentelemetry/trace/span.h"
 #include "opentelemetry/trace/span_context.h"
 #include "rocketmq/RocketMQ.h"
+#include "HookPointStatus.h"
 #include <iostream>
 #include <string>
 
@@ -28,18 +31,15 @@ public:
   static const std::string INVALID_TRACE_ID;
   static const std::string INVALID_SPAN_ID;
 
-  const std::string topic_ = "topic";
-  const std::string consumer_group_ = "consumer_group";
-  const std::string msg_id_ = "msg_id";
-  const std::string tags_ = "tags";
-  const std::string store_host_ = "store_host";
-  const std::string success_ = "success";
-  const std::string max_attempt_times_ = "retry_time";
-  const std::string expired_ = "expired";
-
   static std::string injectSpanContextToTraceParent(const trace::SpanContext& span_context);
 
   static trace::SpanContext extractContextFromTraceParent(const std::string& trace_parent);
+
+  static std::string serializeSpanId(const trace::SpanId span_id);
+
+  static trace::StatusCode convertToTraceStatus(const HookPointStatus status);
+
+  static std::string convertMessageKeysVectorToString(const std::vector<std::string> keys);
 
 private:
   static void generateHexFromString(const std::string& string, int bytes, uint8_t* buf);

@@ -616,15 +616,6 @@ void DefaultMQPushConsumerImpl::setThrottle(const std::string& topic, uint32_t t
   }
 }
 
-#ifdef ENABLE_TRACING
-nostd::shared_ptr<trace::Tracer> DefaultMQPushConsumerImpl::getTracer() {
-  if (nullptr == client_instance_) {
-    return nostd::shared_ptr<trace::Tracer>(nullptr);
-  }
-  return client_instance_->getTracer();
-}
-#endif
-
 void DefaultMQPushConsumerImpl::iterateProcessQueue(const std::function<void(ProcessQueueSharedPtr)>& functor) {
   absl::MutexLock lock(&process_queue_table_mtx_);
   for (const auto& item : process_queue_table_) {

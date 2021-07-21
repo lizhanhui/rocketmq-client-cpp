@@ -276,11 +276,6 @@ void DefaultMQProducerImpl::send0(const MQMessage& message, SendCallback* callba
   // Sign the request. Metadata entries will be part of HTT2 headers frame
   Signature::sign(this, metadata);
 
-  if (max_attempt_times == 1) {
-    client_instance_->send(target, metadata, request, callback);
-    return;
-  }
-
   auto retry_callback =
       new RetrySendCallback(client_instance_, metadata, request, max_attempt_times, callback, std::move(list));
   client_instance_->send(target, metadata, request, retry_callback);

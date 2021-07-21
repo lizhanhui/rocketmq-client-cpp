@@ -28,13 +28,6 @@
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 
-#ifdef ENABLE_TRACING
-#include "opentelemetry/exporters/otlp/otlp_exporter.h"
-#include "opentelemetry/sdk/trace/batch_span_processor.h"
-#include "opentelemetry/sdk/trace/tracer_provider.h"
-#include "opentelemetry/trace/provider.h"
-#endif
-
 #include "rocketmq/AsyncCallback.h"
 #include "rocketmq/CommunicationMode.h"
 #include "rocketmq/State.h"
@@ -206,13 +199,6 @@ public:
                    const PullMessageRequest& request, std::chrono::milliseconds timeout,
                    const std::function<void(bool, const PullMessageResponse&)>& cb);
 
-#ifdef ENABLE_TRACING
-  nostd::shared_ptr<trace::Tracer> getTracer();
-  void updateTraceProvider();
-#endif
-
-  void trace(bool trace) { trace_ = trace; }
-
   void heartbeat(const std::string& target_host, const absl::flat_hash_map<std::string, std::string>& metadata,
                  const HeartbeatRequest& request, std::chrono::milliseconds timeout,
                  const std::function<void(bool, const HeartbeatResponse&)>& cb);
@@ -282,8 +268,6 @@ private:
   grpc::experimental::TlsChannelCredentialsOptions tls_channel_credential_options_;
   std::shared_ptr<grpc::ChannelCredentials> channel_credential_;
   grpc::ChannelArguments channel_arguments_;
-
-  bool trace_{false};
 };
 
 using ClientInstancePtr = std::shared_ptr<ClientInstance>;

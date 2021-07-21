@@ -172,14 +172,6 @@ void ConsumeMessageConcurrentlyService::consumeTask(const ProcessQueueWeakPtr& p
     return;
   }
   // consumer does not start yet.
-#ifdef ENABLE_TRACING
-  nostd::shared_ptr<trace::Tracer> tracer = consumer_shared_ptr->getTracer();
-  if (!tracer) {
-    return;
-  }
-  auto system_start = std::chrono::system_clock::now();
-#endif
-
   auto steady_start = std::chrono::steady_clock::now();
 
   try {
@@ -191,43 +183,13 @@ void ConsumeMessageConcurrentlyService::consumeTask(const ProcessQueueWeakPtr& p
   }
 
   auto duration = std::chrono::steady_clock::now() - steady_start;
-#ifdef ENABLE_TRACING
-  std::chrono::microseconds average_duration =
-      std::chrono::microseconds(MixAll::microsecondsOf(duration) / msgs.size());
-#endif
 
   std::vector<std::string> msg_id_list;
   msg_id_list.reserve(msgs.size());
 
   for (const auto& msg : msgs) {
     msg_id_list.emplace_back(msg.getMsgId());
-#ifdef ENABLE_TRACING
-    nostd::shared_ptr<trace::Span> span = nostd::shared_ptr<trace::Span>(nullptr);
-    trace::EndSpanOptions end_options;
-    if (consumer_shared_ptr->isTracingEnabled()) {
-      const std::string& serialized_span_context = msg.traceContext();
-      trace::SpanContext span_context = TracingUtility::extractContextFromTraceParent(serialized_span_context);
-      trace::StartSpanOptions start_options;
-      start_options.start_system_time =
-          opentelemetry::core::SystemTimestamp(system_start + i * std::chrono::microseconds(average_duration));
-      start_options.start_steady_time =
-          opentelemetry::core::SteadyTimestamp(steady_start + i * std::chrono::microseconds(average_duration));
-      start_options.parent = span_context;
-      end_options.end_steady_time =
-          opentelemetry::core::SteadyTimestamp(steady_start + (i + 1) * std::chrono::microseconds(average_duration));
-      span = tracer->StartSpan("ConsumeMessage", start_options);
-    }
-#endif
-
     process_queue_shared_ptr->messageCachedNumber().fetch_sub(1, std::memory_order_relaxed);
-
-#ifdef ENABLE_TRACING
-    if (span) {
-      span->SetAttribute(TracingUtility::get().expired_, false);
-      span->SetAttribute(TracingUtility::get().success_, CONSUME_SUCCESS == status);
-      span->End(end_options);
-    }
-#endif
 
     if (MessageModel::CLUSTERING == consumer_shared_ptr->messageModel()) {
       if (status == CONSUME_SUCCESS) {

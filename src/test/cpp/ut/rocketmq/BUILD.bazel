@@ -52,6 +52,17 @@ cc_library(
 )
 
 cc_test(
+    name = "tracing_message_interceptor",
+    srcs = [
+        "TracingMessageInterceptorTest.cpp",
+    ],
+    deps = [
+        "//src/main/cpp/rocketmq:rocketmq_library",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "semaphore_test",
     srcs = [
         "SemaphoreTest.cpp",

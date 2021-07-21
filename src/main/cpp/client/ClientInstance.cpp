@@ -21,10 +21,6 @@
 #include "rocketmq/ErrorCode.h"
 #include "rocketmq/MQMessageExt.h"
 
-#ifdef ENABLE_TRACING
-#include "TracingUtility.h"
-#endif
-
 ROCKETMQ_NAMESPACE_BEGIN
 
 ClientInstance::ClientInstance(std::string arn)
@@ -218,79 +214,6 @@ void ClientInstance::doHealthCheck() {
   SPDLOG_DEBUG("Health check completed");
 }
 
-/**
- * TODO:(lingchu) optimize implementation. Client may just select one broker by random.
- */
-#ifdef ENABLE_TRACING
-void ClientInstance::updateTraceProvider() {
-  SPDLOG_DEBUG("Start to update global trace provider");
-  if (State::STARTED != state_.load(std::memory_order_relaxed)) {
-    SPDLOG_WARN("Unexpected client instance state={}.", state_.load(std::memory_order_relaxed));
-    return;
-  }
-  absl::flat_hash_set<std::string> exporter_endpoint_set;
-  {
-    absl::MutexLock lock(&topic_route_table_mtx_);
-    for (const auto& route_entry : topic_route_table_) {
-      for (const auto& partition : route_entry.second->partitions()) {
-        const std::string& broker_name = partition.broker().name();
-        if (MixAll::MASTER_BROKER_ID != partition.broker().id()) {
-          continue;
-        }
-        exporter_endpoint_set.insert(partition.broker().serviceAddress());
-      }
-    }
-  }
-  {
-    absl::MutexLock lock(&exporter_endpoint_set_mtx_);
-    // Available endpoint was not changed, no need to change global trace provider.
-    if (exporter_endpoint_set == exporter_endpoint_set_) {
-      return;
-    }
-
-    // TODO: support ipv6.
-    std::string exporter_endpoint;
-    if (!exporter_endpoint_set.empty()) {
-      exporter_endpoint = absl::StrJoin(exporter_endpoint_set.begin(), exporter_endpoint_set.end(), ",");
-    }
-
-    opentelemetry::exporter::otlp::OtlpExporterOptions exporter_options;
-    // If no available export, use default export here.
-    if (!exporter_endpoint_set.empty()) {
-      exporter_options.endpoint = exporter_endpoint;
-    }
-
-    auto exporter = std::unique_ptr<sdktrace::SpanExporter>(new otlp::OtlpExporter(exporter_options));
-
-    sdktrace::BatchSpanProcessorOptions options{};
-    options.max_queue_size = 32768;
-    options.max_export_batch_size = 16384;
-    options.schedule_delay_millis = std::chrono::milliseconds(1000);
-
-    auto processor =
-        std::shared_ptr<sdktrace::SpanProcessor>(new sdktrace::BatchSpanProcessor(std::move(exporter), options));
-    auto provider = nostd::shared_ptr<trace::TracerProvider>(new sdktrace::TracerProvider(processor));
-    // Set the global trace provider
-    trace::Provider::SetTracerProvider(provider);
-
-    exporter_endpoint_set_.clear();
-    exporter_endpoint_set_.merge(exporter_endpoint_set);
-  }
-}
-
-nostd::shared_ptr<trace::Tracer> ClientInstance::getTracer() {
-  {
-    absl::MutexLock lock(&exporter_endpoint_set_mtx_);
-    if (exporter_endpoint_set_.empty()) {
-      return nostd::shared_ptr<trace::Tracer>(nullptr);
-    }
-    auto provider = trace::Provider::GetTracerProvider();
-    return provider->GetTracer("RocketmqClient");
-  }
-}
-
-#endif
-
 void ClientInstance::cleanOfflineRpcClients() {
   absl::flat_hash_set<std::string> hosts;
   {
@@ -468,23 +391,6 @@ bool ClientInstance::send(const std::string& target, const absl::flat_hash_map<s
   SPDLOG_DEBUG("Prepare to send message to {} asynchronously", target_host);
   RpcClientSharedPtr client = getRpcClient(target_host);
 
-#ifdef ENABLE_TRACING
-  nostd::shared_ptr<trace::Span> span = nostd::shared_ptr<trace::Span>(nullptr);
-  if (trace_) {
-    span = getTracer()->StartSpan("SendMessageAsync");
-
-    MQMessage message = context->getMessage();
-    span->SetAttribute(TracingUtility::get().topic_, message.getTopic());
-    span->SetAttribute(TracingUtility::get().tags_, message.getTags());
-    span->SetAttribute(TracingUtility::get().msg_id_, context->getMessageId());
-
-    const std::string& serialized_span_context = TracingUtility::injectSpanContextToTraceParent(span->GetContext());
-    request.mutable_message()->mutable_system_attribute()->set_trace_context(serialized_span_context);
-  }
-#else
-  bool span = false;
-#endif
-
   // Invocation context will be deleted in its onComplete() method.
   auto invocation_context = new InvocationContext<SendMessageResponse>();
   for (const auto& entry : metadata) {
@@ -492,16 +398,10 @@ bool ClientInstance::send(const std::string& target, const absl::flat_hash_map<s
   }
 
   const std::string& topic = request.message().topic().name();
-  auto completion_callback = [topic, callback, target_host, span, this](const grpc::Status& status,
+  auto completion_callback = [topic, callback, target_host, this](const grpc::Status& status,
                                                                         const grpc::ClientContext&,
                                                                         const SendMessageResponse& response) {
     if (status.ok() && google::rpc::Code::OK == response.common().status().code()) {
-#ifdef ENABLE_TRACING
-      if (span) {
-        span->SetAttribute(TracingUtility::get().success_, true);
-        span->End();
-      }
-#endif
       SendResult send_result;
       send_result.setMsgId(response.message_id());
       send_result.setQueueOffset(-1);
@@ -516,14 +416,6 @@ bool ClientInstance::send(const std::string& target, const absl::flat_hash_map<s
                     state_.load(std::memory_order_relaxed), send_result.getMsgId());
       }
     } else {
-
-#ifdef ENABLE_TRACING
-      if (span) {
-        span->SetAttribute(TracingUtility::get().success_, false);
-        span->End();
-      }
-#endif
-
       if (!status.ok()) {
         SPDLOG_WARN("Failed to send message to {} due to gRPC error. gRPC code: {}, gRPC error message: {}",
                     target_host, status.error_code(), status.error_message());

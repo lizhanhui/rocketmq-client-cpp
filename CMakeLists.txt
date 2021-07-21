@@ -62,7 +62,7 @@ endif ()
 
 FetchContent_MakeAvailable(fmt gRPC spdlog uv ghc)
 
-option(ENABLE_TRACING OFF)
+option(ENABLE_TRACING ON)
 if (ENABLE_TRACING)
     FetchContent_MakeAvailable(opentelemetry)
 endif ()

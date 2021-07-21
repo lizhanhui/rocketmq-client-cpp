@@ -121,6 +121,8 @@ std::chrono::system_clock::time_point MQMessageExt::bornTimestamp() const {
 
 int64_t MQMessageExt::getBornTimestamp() const { return absl::ToUnixMillis(impl_->system_attribute_.born_timestamp); }
 
+int64_t MQMessageExt::getDeliveryTimestamp() const { return absl::ToUnixMillis(impl_->system_attribute_.delivery_timestamp); }
+
 std::string MQMessageExt::getBornHost() const { return impl_->system_attribute_.born_host; }
 
 std::chrono::system_clock::time_point MQMessageExt::storeTimestamp() const {
@@ -128,6 +130,10 @@ std::chrono::system_clock::time_point MQMessageExt::storeTimestamp() const {
 }
 
 int64_t MQMessageExt::getStoreTimestamp() const { return absl::ToUnixMillis(impl_->system_attribute_.store_timestamp); }
+
+std::chrono::system_clock::time_point MQMessageExt::decodeTimestamp() const {
+  return absl::ToChronoTime(impl_->system_attribute_.decode_timestamp);
+}
 
 std::string MQMessageExt::getStoreHost() const { return impl_->system_attribute_.store_host; }
 

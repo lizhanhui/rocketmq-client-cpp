@@ -8,6 +8,8 @@ cc_library(
         "//src/main/cpp/client:client_library",
         "//src/main/cpp/log:log_library",
         "//src/main/cpp/admin:admin_server_library",
+        "@io_opentelemetry_cpp//sdk/src/trace:trace",
+        "@io_opentelemetry_cpp//exporters/otlp:otlp_exporter",
     ],
     visibility = ["//visibility:public"],
 )

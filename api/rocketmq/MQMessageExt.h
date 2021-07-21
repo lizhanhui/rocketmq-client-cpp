@@ -22,12 +22,16 @@ public:
    */
   int64_t getBornTimestamp() const;
 
+  int64_t getDeliveryTimestamp() const;
+
   std::chrono::system_clock::time_point bornTimestamp() const;
 
   std::string getBornHost() const;
 
   std::chrono::system_clock::time_point storeTimestamp() const;
   int64_t getStoreTimestamp() const;
+
+  std::chrono::system_clock::time_point decodeTimestamp() const;
 
   std::string getStoreHost() const;
 
