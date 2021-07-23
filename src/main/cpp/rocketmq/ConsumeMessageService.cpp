@@ -1,4 +1,5 @@
 #include "ConsumeMessageService.h"
+#include "DefaultMQPushConsumerImpl.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -82,6 +83,17 @@ std::shared_ptr<RateLimiter<10>> ConsumeMessageService::rateLimiter(const std::s
   }
   absl::MutexLock lk(&rate_limiter_table_mtx_);
   return rate_limiter_table_[topic];
+}
+
+void ConsumeMessageService::dispatch() {
+  std::shared_ptr<DefaultMQPushConsumerImpl> consumer = consumer_weak_ptr_.lock();
+  if (!consumer) {
+    SPDLOG_WARN("The consumer has already destructed");
+    return;
+  }
+
+  auto callback = [this](const ProcessQueueSharedPtr& process_queue) { submitConsumeTask(process_queue); };
+  consumer->iterateProcessQueue(callback);
 }
 
 ROCKETMQ_NAMESPACE_END

@@ -18,9 +18,9 @@ ProcessQueue::ProcessQueue(MQMessageQueue message_queue, FilterExpression filter
                            std::shared_ptr<ClientInstance> client_instance)
     : message_queue_(std::move(message_queue)), filter_expression_(std::move(filter_expression)),
       consume_type_(consume_type), max_message_number_(MixAll::MAX_MESSAGE_NUMBER_PER_BATCH),
-      invisible_time_(MixAll::millisecondsOf(MixAll::DEFAULT_INVISIBLE_TIME_)), message_cached_number_(0),
-      max_cache_size_(max_cache_size), simple_name_(message_queue_.simpleName()),
-      call_back_owner_(std::move(call_back_owner)), client_instance_(std::move(client_instance)) {
+      invisible_time_(MixAll::millisecondsOf(MixAll::DEFAULT_INVISIBLE_TIME_)), max_cache_size_(max_cache_size),
+      simple_name_(message_queue_.simpleName()), call_back_owner_(std::move(call_back_owner)),
+      client_instance_(std::move(client_instance)) {
   SPDLOG_DEBUG("Created ProcessQueue={}", simpleName());
 }
 
@@ -43,7 +43,12 @@ bool ProcessQueue::expired() const {
 }
 
 bool ProcessQueue::shouldThrottle() const {
-  int current = message_cached_number_.load(std::memory_order_relaxed);
+  std::size_t current;
+  {
+    absl::MutexLock lk(&messages_mtx_);
+    current = cached_messages_.size() + inflight_handles_.size();
+  }
+
   bool need_throttle = current >= max_cache_size_;
   if (need_throttle) {
     SPDLOG_INFO("{}: Number of locally cached messages is {}, which exceeds threshold={}", simple_name_, current,
@@ -98,27 +103,36 @@ void ProcessQueue::cacheMessages(const std::vector<MQMessageExt>& messages) {
     return;
   }
 
-  absl::MutexLock lock(&messages_mtx_);
-  for (const auto& message : messages) {
-    const std::string& msg_id = message.getMsgId();
-    if (!filter_expression_.accept(message)) {
-      const std::string& topic = message.getTopic();
-      auto callback = [topic, msg_id](bool ok) {
-        if (ok) {
-          SPDLOG_DEBUG("Ack message[Topic={}, MsgId={}] directly as it fails to pass filter expression", topic, msg_id);
-        } else {
-          SPDLOG_WARN("Failed to ack message[Topic={}, MsgId={}] directly as it fails to pass filter expression", topic,
-                      msg_id);
+  {
+    absl::MutexLock messages_lock_guard(&messages_mtx_);
+    // TODO: use lock-when semantics
+    absl::MutexLock offsets_lock_guard(&offsets_mtx_);
+    for (const auto& message : messages) {
+      const std::string& msg_id = message.getMsgId();
+      if (!filter_expression_.accept(message)) {
+        const std::string& topic = message.getTopic();
+        auto callback = [topic, msg_id](bool ok) {
+          if (ok) {
+            SPDLOG_DEBUG("Ack message[Topic={}, MsgId={}] directly as it fails to pass filter expression", topic,
+                         msg_id);
+          } else {
+            SPDLOG_WARN("Failed to ack message[Topic={}, MsgId={}] directly as it fails to pass filter expression",
+                        topic, msg_id);
+          }
+        };
+        consumer->ack(message, callback);
+        continue;
+      }
+      cached_messages_.emplace_back(message);
+      if (MessageModel::BROADCASTING == consumer->messageModel() && consumer->hasCustomOffsetStore()) {
+        if (offsets_.size() == 1 && offsets_.begin()->released_) {
+          int64_t previously_released = offsets_.begin()->offset_;
+          offsets_.erase(OffsetRecord(previously_released));
         }
-      };
-      consumer->ack(message, callback);
-      continue;
+        offsets_.emplace(message.getQueueOffset());
+      }
     }
-    cached_messages_.emplace_back(message);
-    message_cached_number_.fetch_add(1, std::memory_order_relaxed);
   }
-  SPDLOG_DEBUG("{}: Number of locally cached messages is: {}", message_queue_.simpleName(),
-               message_cached_number_.load(std::memory_order_relaxed));
 }
 
 bool ProcessQueue::take(int batch_size, std::vector<MQMessageExt>& messages) {
@@ -141,9 +155,36 @@ bool ProcessQueue::take(int batch_size, std::vector<MQMessageExt>& messages) {
   return !cached_messages_.empty();
 }
 
-void ProcessQueue::releaseQuota(const std::string& handle) {
-  absl::MutexLock lk(&messages_mtx_);
-  inflight_handles_.erase(handle);
+bool ProcessQueue::committedOffset(int64_t& offset) {
+  absl::MutexLock lk(&offsets_mtx_);
+  if (offsets_.empty()) {
+    return false;
+  }
+  offset = offsets_.begin()->offset_;
+  return true;
+}
+
+void ProcessQueue::release(const std::string& message_id, int64_t offset) {
+  auto consumer = call_back_owner_.lock();
+  if (!consumer) {
+    return;
+  }
+
+  {
+    absl::MutexLock lk(&messages_mtx_);
+    inflight_handles_.erase(message_id);
+  }
+
+  if (MessageModel::BROADCASTING == consumer->messageModel() && consumer->hasCustomOffsetStore()) {
+    absl::MutexLock lk(&offsets_mtx_);
+    if (offsets_.size() > 1) {
+      offsets_.erase(OffsetRecord(offset));
+    } else {
+      assert(offsets_.begin()->offset_ == offset);
+      offsets_.erase(OffsetRecord(offset));
+      offsets_.emplace(OffsetRecord(offset, true));
+    }
+  }
 }
 
 void ProcessQueue::wrapPopMessageRequest(absl::flat_hash_map<std::string, std::string>& metadata,

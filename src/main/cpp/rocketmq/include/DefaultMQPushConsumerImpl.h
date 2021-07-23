@@ -128,6 +128,8 @@ public:
 
   void offsetStore(std::unique_ptr<OffsetStore> offset_store) { offset_store_ = std::move(offset_store); }
 
+  bool hasCustomOffsetStore() const { return nullptr != offset_store_; }
+
 protected:
   std::shared_ptr<BaseImpl> self() override { return shared_from_this(); }
 
@@ -176,10 +178,11 @@ private:
 
   void fetchRoutes() LOCKS_EXCLUDED(topic_filter_expression_table_mtx_);
 
-  void iterateProcessQueue(const std::function<void(ProcessQueueSharedPtr)>& functor);
+  void iterateProcessQueue(const std::function<void(ProcessQueueSharedPtr)>& callback);
 
-  friend class ConsumeMessageConcurrentlyService;
+  friend class ConsumeMessageService;
   friend class ConsumeMessageOrderlyService;
+  friend class ConsumeMessageConcurrentlyService;
 
   static const int32_t MAX_CACHED_MESSAGE_COUNT;
   static const int32_t DEFAULT_CACHED_MESSAGE_COUNT;

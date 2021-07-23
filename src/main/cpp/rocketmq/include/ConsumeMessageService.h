@@ -81,7 +81,7 @@ protected:
   /**
    * Dispatch messages to thread pool. Implementation of this function should be sub-class specific.
    */
-  virtual void dispatch() = 0;
+  void dispatch();
 };
 
 class ConsumeMessageConcurrentlyService : public ConsumeMessageService {
@@ -99,9 +99,6 @@ public:
 
   MessageListenerType getConsumeMsgServiceListenerType() override;
 
-protected:
-  void dispatch() override;
-
 private:
   void consumeTask(const ProcessQueueWeakPtr& process_queue, const std::vector<MQMessageExt>& msgs);
 };
@@ -117,9 +114,6 @@ public:
   void submitConsumeTask(const ProcessQueueWeakPtr& process_queue) override;
 
   MessageListenerType getConsumeMsgServiceListenerType() override;
-
-protected:
-  void dispatch() override;
 
 private:
   void consumeTask(const ProcessQueueWeakPtr& process_queue, std::vector<MQMessageExt>& msgs);

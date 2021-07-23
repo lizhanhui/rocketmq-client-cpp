@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <memory>
+#include <set>
 
 #include "ClientInstance.h"
 #include "FilterExpression.h"
@@ -16,6 +17,27 @@
 #include "rocketmq/ConsumerType.h"
 #include "rocketmq/MQMessageExt.h"
 #include "rocketmq/MQMessageQueue.h"
+
+ROCKETMQ_NAMESPACE_BEGIN
+
+struct OffsetRecord {
+  explicit OffsetRecord(int64_t offset) : offset_(offset), released_(false) {}
+  OffsetRecord(int64_t offset, bool released) : offset_(offset), released_(released) {}
+  int64_t offset_;
+  bool released_;
+};
+
+ROCKETMQ_NAMESPACE_END
+
+namespace std {
+
+template <> struct less<ROCKETMQ_NAMESPACE::OffsetRecord> {
+  bool operator()(const ROCKETMQ_NAMESPACE::OffsetRecord& lhs, const ROCKETMQ_NAMESPACE::OffsetRecord& rhs) {
+    return lhs.offset_ < rhs.offset_;
+  }
+};
+
+} // namespace std
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -34,7 +56,7 @@ public:
 
   bool expired() const;
 
-  bool shouldThrottle() const;
+  bool shouldThrottle() const LOCKS_EXCLUDED(messages_mtx_);
 
   const FilterExpression& getFilterExpression() const;
 
@@ -55,7 +77,7 @@ public:
    *
    * @param messages
    */
-  void cacheMessages(const std::vector<MQMessageExt>& messages) LOCKS_EXCLUDED(messages_mtx_);
+  void cacheMessages(const std::vector<MQMessageExt>& messages) LOCKS_EXCLUDED(messages_mtx_, offsets_mtx_);
 
   /**
    * @return Number of messages that is not yet dispatched to thread pool, likely, due to topic-rate-limiting.
@@ -84,15 +106,18 @@ public:
 
   int64_t nextOffset() const { return next_offset_; }
 
-  void releaseQuota(const std::string& handle) LOCKS_EXCLUDED(messages_mtx_);
+  bool committedOffset(int64_t& offset) LOCKS_EXCLUDED(offsets_mtx_);
 
-  bool unbindFifoConsumeTask() const {
-    return submitted_.load(std::memory_order_relaxed);
+  void release(const std::string& message_id, int64_t offset) LOCKS_EXCLUDED(messages_mtx_, offsets_mtx_);
+
+  bool unbindFifoConsumeTask() {
+    bool expected = true;
+    return has_fifo_task_bound_.compare_exchange_strong(expected, false, std::memory_order_relaxed);
   }
 
   bool bindFifoConsumeTask() {
     bool expected = false;
-    return submitted_.compare_exchange_strong(expected, true, std::memory_order_relaxed);
+    return has_fifo_task_bound_.compare_exchange_strong(expected, true, std::memory_order_relaxed);
   }
 
 private:
@@ -117,14 +142,9 @@ private:
   ConsumeInitialMode initial_mode_{ConsumeInitialMode::MAX};
 
   /**
-   * Number of messages that are not yet acknowledged.
-   */
-  std::atomic_int message_cached_number_;
-
-  /**
    * Maximum number of locally cached messages. Once exceeding this threshold, fetch-loop should be throttled.
    */
-  int max_cache_size_;
+  std::size_t max_cache_size_;
 
   std::string simple_name_;
 
@@ -150,7 +170,10 @@ private:
   /**
    * If this process queue is used in FIFO scenario, this field marks if there is an task in thread pool.
    */
-  std::atomic_bool submitted_{false};
+  std::atomic_bool has_fifo_task_bound_{false};
+
+  std::set<OffsetRecord> offsets_ GUARDED_BY(offsets_mtx_);
+  absl::Mutex offsets_mtx_;
 
   void popMessage();
   void wrapPopMessageRequest(absl::flat_hash_map<std::string, std::string>& metadata,

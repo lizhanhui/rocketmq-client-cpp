@@ -80,21 +80,10 @@ MessageListenerType ConsumeMessageOrderlyService::getConsumeMsgServiceListenerTy
   return MessageListenerType::messageListenerOrderly;
 }
 
-void ConsumeMessageOrderlyService::dispatch() {
-  std::shared_ptr<DefaultMQPushConsumerImpl> consumer = consumer_weak_ptr_.lock();
-  if (!consumer) {
-    SPDLOG_WARN("The consumer has already destructed");
-    return;
-  }
-
-  auto lambda = [this](const ProcessQueueSharedPtr& process_queue_ptr) { submitConsumeTask(process_queue_ptr); };
-  consumer->iterateProcessQueue(lambda);
-}
-
 void ConsumeMessageOrderlyService::consumeTask(const ProcessQueueWeakPtr& process_queue,
                                                std::vector<MQMessageExt>& msgs) {
-  ProcessQueueSharedPtr process_queue_shared_ptr = process_queue.lock();
-  if (!process_queue_shared_ptr) {
+  ProcessQueueSharedPtr process_queue_ptr = process_queue.lock();
+  if (!process_queue_ptr) {
     return;
   }
   std::string topic = msgs.begin()->getTopic();
@@ -134,41 +123,49 @@ void ConsumeMessageOrderlyService::consumeTask(const ProcessQueueWeakPtr& proces
       for (const auto& msg : msgs) {
         const std::string& message_id = msg.getMsgId();
         // Release message number and memory quota
-        process_queue_shared_ptr->releaseQuota(message_id);
-        auto callback = [process_queue_shared_ptr, message_id](bool ok) {
+        process_queue_ptr->release(message_id, msg.getQueueOffset());
+        auto callback = [process_queue_ptr, message_id](bool ok) {
           if (ok) {
-            SPDLOG_DEBUG("Acknowledge FIFO message[MessageQueue={}, MsgId={}] OK",
-                         process_queue_shared_ptr->simpleName(), message_id);
+            SPDLOG_DEBUG("Acknowledge FIFO message[MessageQueue={}, MsgId={}] OK", process_queue_ptr->simpleName(),
+                         message_id);
           } else {
             SPDLOG_WARN("Failed to acknowledge FIFO message[MessageQueue={}, MsgId={}]",
-                        process_queue_shared_ptr->simpleName(), message_id);
+                        process_queue_ptr->simpleName(), message_id);
           }
         };
         consumer->ack(msg, callback);
       }
-      process_queue_shared_ptr->unbindFifoConsumeTask();
+      process_queue_ptr->unbindFifoConsumeTask();
       signalDispatcher();
     } else {
-      int32_t reconsume_times = std::numeric_limits<int32_t>::max();
+      int32_t min_reconsume_times = std::numeric_limits<int32_t>::max();
       for (auto& msg : msgs) {
         MessageAccessor::setAttemptTimes(msg, msg.getReconsumeTimes() + 1);
-        if (msg.getReconsumeTimes() < reconsume_times) {
-          reconsume_times = msg.getReconsumeTimes();
+        if (msg.getReconsumeTimes() < min_reconsume_times) {
+          min_reconsume_times = msg.getReconsumeTimes();
         }
       }
 
-      if (reconsume_times < consumer->max_delivery_attempts_) {
+      if (min_reconsume_times < consumer->max_delivery_attempts_) {
         // Submit consume task to thread pool.
         submitConsumeTask0(consumer, process_queue, std::move(msgs));
         SPDLOG_INFO("Business callback failed to process FIFO messages. Re-submit consume task back to thread pool");
       } else {
+        process_queue_ptr->unbindFifoConsumeTask();
         // TODO: Move them to DLQ
       }
     }
   } else if (MessageModel::BROADCASTING == consumer->messageModel()) {
+    for (const auto& msg : msgs) {
+      process_queue_ptr->release(msg.getMsgId(), msg.getQueueOffset());
+      process_queue_ptr->nextOffset(msg.getQueueOffset());
+    }
+
     if (consumer->offset_store_) {
-      consumer->offset_store_->updateOffset(process_queue_shared_ptr->getMQMessageQueue(),
-                                            process_queue_shared_ptr->nextOffset());
+      int64_t committed_offset;
+      if (process_queue_ptr->committedOffset(committed_offset)) {
+        consumer->offset_store_->updateOffset(process_queue_ptr->getMQMessageQueue(), committed_offset);
+      }
     }
   }
 }

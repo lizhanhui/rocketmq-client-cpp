@@ -79,21 +79,10 @@ MessageListenerType ConsumeMessageConcurrentlyService::getConsumeMsgServiceListe
   return messageListenerConcurrently;
 }
 
-void ConsumeMessageConcurrentlyService::dispatch() {
-  std::shared_ptr<DefaultMQPushConsumerImpl> consumer = consumer_weak_ptr_.lock();
-  if (!consumer) {
-    SPDLOG_WARN("The consumer has already destructed");
-    return;
-  }
-
-  auto lambda = [this](const ProcessQueueSharedPtr& process_queue_ptr) { submitConsumeTask(process_queue_ptr); };
-  consumer->iterateProcessQueue(lambda);
-}
-
 void ConsumeMessageConcurrentlyService::consumeTask(const ProcessQueueWeakPtr& process_queue,
                                                     const std::vector<MQMessageExt>& msgs) {
-  ProcessQueueSharedPtr process_queue_shared_ptr = process_queue.lock();
-  if (!process_queue_shared_ptr || msgs.empty()) {
+  ProcessQueueSharedPtr process_queue_ptr = process_queue.lock();
+  if (!process_queue_ptr || msgs.empty()) {
     return;
   }
   std::string topic = msgs.begin()->getTopic();
@@ -141,71 +130,68 @@ void ConsumeMessageConcurrentlyService::consumeTask(const ProcessQueueWeakPtr& p
       std::chrono::microseconds(MixAll::microsecondsOf(duration) / msgs.size());
 #endif
 
-  for (const auto& msg : msgs) {
-    const std::string& message_id = msg.getMsgId();
+  if (MessageModel::CLUSTERING == consumer->messageModel()) {
+    for (const auto& msg : msgs) {
+      const std::string& message_id = msg.getMsgId();
 
-    // Release message number and memory quota
-    process_queue_shared_ptr->releaseQuota(message_id);
-
-#ifdef ENABLE_TRACING
-    nostd::shared_ptr<trace::Span> span = nostd::shared_ptr<trace::Span>(nullptr);
-    trace::EndSpanOptions end_options;
-    if (consumer_shared_ptr->isTracingEnabled()) {
-      const std::string& serialized_span_context = msg.traceContext();
-      trace::SpanContext span_context = TracingUtility::extractContextFromTraceParent(serialized_span_context);
-      trace::StartSpanOptions start_options;
-      start_options.start_system_time =
-          opentelemetry::core::SystemTimestamp(system_start + i * std::chrono::microseconds(average_duration));
-      start_options.start_steady_time =
-          opentelemetry::core::SteadyTimestamp(steady_start + i * std::chrono::microseconds(average_duration));
-      start_options.parent = span_context;
-      end_options.end_steady_time =
-          opentelemetry::core::SteadyTimestamp(steady_start + (i + 1) * std::chrono::microseconds(average_duration));
-      span = tracer->StartSpan("ConsumeMessage", start_options);
-    }
-#endif
+      // Release message number and memory quota
+      process_queue_ptr->release(message_id, msg.getQueueOffset());
 
 #ifdef ENABLE_TRACING
-    if (span) {
-      span->SetAttribute(TracingUtility::get().expired_, false);
-      span->SetAttribute(TracingUtility::get().success_, CONSUME_SUCCESS == status);
-      span->End(end_options);
-    }
-#endif
+      nostd::shared_ptr<trace::Span> span = nostd::shared_ptr<trace::Span>(nullptr);
+      trace::EndSpanOptions end_options;
+      if (consumer_shared_ptr->isTracingEnabled()) {
+        const std::string& serialized_span_context = msg.traceContext();
+        trace::SpanContext span_context = TracingUtility::extractContextFromTraceParent(serialized_span_context);
+        trace::StartSpanOptions start_options;
+        start_options.start_system_time =
+            opentelemetry::core::SystemTimestamp(system_start + i * std::chrono::microseconds(average_duration));
+        start_options.start_steady_time =
+            opentelemetry::core::SteadyTimestamp(steady_start + i * std::chrono::microseconds(average_duration));
+        start_options.parent = span_context;
+        end_options.end_steady_time =
+            opentelemetry::core::SteadyTimestamp(steady_start + (i + 1) * std::chrono::microseconds(average_duration));
+        span = tracer->StartSpan("ConsumeMessage", start_options);
+      }
 
-    if (MessageModel::CLUSTERING == consumer->messageModel()) {
+      if (span) {
+        span->SetAttribute(TracingUtility::get().expired_, false);
+        span->SetAttribute(TracingUtility::get().success_, CONSUME_SUCCESS == status);
+        span->End(end_options);
+      }
+#endif
       if (status == CONSUME_SUCCESS) {
-        auto callback = [process_queue_shared_ptr, message_id](bool ok) {
+        auto callback = [process_queue_ptr, message_id](bool ok) {
           if (ok) {
-            SPDLOG_DEBUG("Acknowledge message[MessageQueue={}, MsgId={}] OK", process_queue_shared_ptr->simpleName(),
+            SPDLOG_DEBUG("Acknowledge message[MessageQueue={}, MsgId={}] OK", process_queue_ptr->simpleName(),
                          message_id);
           } else {
-            SPDLOG_WARN("Failed to acknowledge message[MessageQueue={}, MsgId={}]",
-                        process_queue_shared_ptr->simpleName(), message_id);
+            SPDLOG_WARN("Failed to acknowledge message[MessageQueue={}, MsgId={}]", process_queue_ptr->simpleName(),
+                        message_id);
           }
         };
         consumer->ack(msg, callback);
       } else {
-        auto callback = [process_queue_shared_ptr, message_id](bool ok) {
+        auto callback = [process_queue_ptr, message_id](bool ok) {
           if (ok) {
-            SPDLOG_DEBUG("Nack message[MessageQueue={}, MsgId={}] OK", process_queue_shared_ptr->simpleName(),
-                         message_id);
+            SPDLOG_DEBUG("Nack message[MessageQueue={}, MsgId={}] OK", process_queue_ptr->simpleName(), message_id);
           } else {
             SPDLOG_INFO(
                 "Failed to negative acknowledge message[MessageQueue={}, MsgId={}]. Message will be re-consumed "
                 "after default invisible time",
-                process_queue_shared_ptr->simpleName(), message_id);
+                process_queue_ptr->simpleName(), message_id);
           }
         };
         consumer->nack(msg, callback);
       }
     }
-  }
 
-  if (MessageModel::BROADCASTING == consumer->messageModel()) {
+  } else if (MessageModel::BROADCASTING == consumer->messageModel()) {
     if (consumer->offset_store_) {
-      consumer->offset_store_->updateOffset(process_queue_shared_ptr->getMQMessageQueue(),
-                                            process_queue_shared_ptr->nextOffset());
+      int64_t committed_offset;
+      if (process_queue_ptr->committedOffset(committed_offset)) {
+        consumer->offset_store_->updateOffset(process_queue_ptr->getMQMessageQueue(), committed_offset);
+      }
     }
   }
 }
