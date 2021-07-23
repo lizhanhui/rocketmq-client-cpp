@@ -4,7 +4,6 @@
 #include "Metadata.h"
 #include "Protocol.h"
 #include "Signature.h"
-#include <arpa/inet.h>
 #include <chrono>
 #include <memory>
 #include <utility>
@@ -88,17 +87,42 @@ void ProcessQueue::pullMessage() {
   client_instance_->pullMessage(message_queue_.serviceAddress(), metadata, request, callback_);
 }
 
+bool ProcessQueue::hasPendingMessages() const {
+  absl::MutexLock lk(&messages_mtx_);
+  return !cached_messages_.empty();
+}
+
 void ProcessQueue::cacheMessages(const std::vector<MQMessageExt>& messages) {
-  absl::MutexLock lock(&cached_messages_mtx_);
-  cached_messages_.reserve(cached_messages_.size() + messages.size());
-  cached_messages_.insert(cached_messages_.end(), messages.begin(), messages.end());
-  message_cached_number_.fetch_add(messages.size(), std::memory_order_relaxed);
+  auto consumer = call_back_owner_.lock();
+  if (!consumer) {
+    return;
+  }
+
+  absl::MutexLock lock(&messages_mtx_);
+  for (const auto& message : messages) {
+    const std::string& msg_id = message.getMsgId();
+    if (!filter_expression_.accept(message)) {
+      const std::string& topic = message.getTopic();
+      auto callback = [topic, msg_id](bool ok) {
+        if (ok) {
+          SPDLOG_DEBUG("Ack message[Topic={}, MsgId={}] directly as it fails to pass filter expression", topic, msg_id);
+        } else {
+          SPDLOG_WARN("Failed to ack message[Topic={}, MsgId={}] directly as it fails to pass filter expression", topic,
+                      msg_id);
+        }
+      };
+      consumer->ack(message, callback);
+      continue;
+    }
+    cached_messages_.emplace_back(message);
+    message_cached_number_.fetch_add(1, std::memory_order_relaxed);
+  }
   SPDLOG_DEBUG("{}: Number of locally cached messages is: {}", message_queue_.simpleName(),
                message_cached_number_.load(std::memory_order_relaxed));
 }
 
-bool ProcessQueue::consume(int batch_size, std::vector<MQMessageExt>& messages) {
-  absl::MutexLock lock(&cached_messages_mtx_);
+bool ProcessQueue::take(int batch_size, std::vector<MQMessageExt>& messages) {
+  absl::MutexLock lock(&messages_mtx_);
   if (cached_messages_.empty()) {
     return false;
   }
@@ -108,10 +132,18 @@ bool ProcessQueue::consume(int batch_size, std::vector<MQMessageExt>& messages) 
       break;
     }
 
+    // Reserve quota
+    inflight_handles_.insert({it->getMsgId(), it->getBody().size()});
+
     messages.push_back(*it);
     it = cached_messages_.erase(it);
   }
   return !cached_messages_.empty();
+}
+
+void ProcessQueue::releaseQuota(const std::string& handle) {
+  absl::MutexLock lk(&messages_mtx_);
+  inflight_handles_.erase(handle);
 }
 
 void ProcessQueue::wrapPopMessageRequest(absl::flat_hash_map<std::string, std::string>& metadata,

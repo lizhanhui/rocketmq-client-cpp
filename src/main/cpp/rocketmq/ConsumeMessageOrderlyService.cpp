@@ -33,7 +33,7 @@ void ConsumeMessageOrderlyService::shutdown() {
   }
 }
 
-void ConsumeMessageOrderlyService::submitConsumeTask(const ProcessQueueWeakPtr& process_queue, int32_t permits) {}
+void ConsumeMessageOrderlyService::submitConsumeTask(const ProcessQueueWeakPtr& process_queue) {}
 
 MessageListenerType ConsumeMessageOrderlyService::getConsumeMsgServiceListenerType() {
   return MessageListenerType::messageListenerOrderly;

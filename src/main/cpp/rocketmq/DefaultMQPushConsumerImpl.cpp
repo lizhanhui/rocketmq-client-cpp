@@ -618,7 +618,9 @@ nostd::shared_ptr<trace::Tracer> DefaultMQPushConsumerImpl::getTracer() {
 void DefaultMQPushConsumerImpl::iterateProcessQueue(const std::function<void(ProcessQueueSharedPtr)>& functor) {
   absl::MutexLock lock(&process_queue_table_mtx_);
   for (const auto& item : process_queue_table_) {
-    functor(item.second);
+    if (item.second->hasPendingMessages()) {
+      functor(item.second);
+    }
   }
 }
 

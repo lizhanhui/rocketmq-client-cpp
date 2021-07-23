@@ -34,7 +34,7 @@ void ConsumeMessageConcurrentlyService::shutdown() {
   }
 }
 
-void ConsumeMessageConcurrentlyService::submitConsumeTask(const ProcessQueueWeakPtr& process_queue, int32_t permits) {
+void ConsumeMessageConcurrentlyService::submitConsumeTask(const ProcessQueueWeakPtr& process_queue) {
   ProcessQueueSharedPtr process_queue_ptr = process_queue.lock();
   if (!process_queue_ptr) {
     SPDLOG_WARN("ProcessQueue was destructed. It is likely that client should have shutdown.");
@@ -47,28 +47,11 @@ void ConsumeMessageConcurrentlyService::submitConsumeTask(const ProcessQueueWeak
   }
 
   std::string topic = process_queue_ptr->topic();
-  std::shared_ptr<RateLimiter<10>> rate_limiter = rateLimiter(topic);
   bool has_more = true;
   while (has_more) {
     std::vector<MQMessageExt> messages;
     uint32_t batch_size = consumer_impl_ptr->consumeBatchSize();
-    uint32_t acquired;
-    if (rate_limiter) {
-      uint32_t permits_to_acquire =
-          std::min({batch_size, rate_limiter->available(), process_queue_ptr->cachedMessagesSize()});
-      acquired = rate_limiter->acquire(permits_to_acquire);
-      if (!acquired) {
-        SPDLOG_DEBUG("Throttled: failed to acquire permits from rate limiter");
-        break;
-      }
-    } else if (permits < 0) {
-      acquired = batch_size;
-    } else {
-      SPDLOG_WARN("submitConsumeTask with permits = 0");
-      break;
-    }
-
-    has_more = process_queue_ptr->consume(acquired, messages);
+    has_more = process_queue_ptr->take(batch_size, messages);
     if (messages.empty()) {
       assert(!has_more);
       break;
@@ -103,23 +86,7 @@ void ConsumeMessageConcurrentlyService::dispatch() {
     return;
   }
 
-  auto lambda = [this](const ProcessQueueSharedPtr& process_queue_ptr) {
-    // Note: we have already got process_queue_table_mtx_ locked
-    std::string topic = process_queue_ptr->topic();
-    if (hasConsumeRateLimiter(topic)) {
-      std::shared_ptr<RateLimiter<10>> rate_limiter = rateLimiter(topic);
-      if (rate_limiter) {
-        uint32_t permits = rate_limiter->available();
-        if (permits) {
-          submitConsumeTask(process_queue_ptr, permits);
-        }
-      } else {
-        submitConsumeTask(process_queue_ptr, -1);
-      }
-    } else {
-      submitConsumeTask(process_queue_ptr, -1);
-    }
-  };
+  auto lambda = [this](const ProcessQueueSharedPtr& process_queue_ptr) { submitConsumeTask(process_queue_ptr); };
   consumer->iterateProcessQueue(lambda);
 }
 
@@ -145,6 +112,15 @@ void ConsumeMessageConcurrentlyService::consumeTask(const ProcessQueueWeakPtr& p
   auto system_start = std::chrono::system_clock::now();
 #endif
 
+  std::shared_ptr<RateLimiter<10>> rate_limiter = rateLimiter(topic);
+  if (rate_limiter) {
+    // Acquire permits one-by-one to avoid large batch hungry issue.
+    for (std::size_t i = 0; i < msgs.size(); i++) {
+      rate_limiter->acquire();
+    }
+    SPDLOG_DEBUG("{} rate-limit permits acquired", msgs.size());
+  }
+
   auto steady_start = std::chrono::steady_clock::now();
 
   try {
@@ -156,16 +132,21 @@ void ConsumeMessageConcurrentlyService::consumeTask(const ProcessQueueWeakPtr& p
   }
 
   auto duration = std::chrono::steady_clock::now() - steady_start;
+
+  // Log client consume-time costs
+  SPDLOG_DEBUG("Business callback spent {}ms processing {} messages.", MixAll::millisecondsOf(duration), msgs.size());
+
 #ifdef ENABLE_TRACING
   std::chrono::microseconds average_duration =
       std::chrono::microseconds(MixAll::microsecondsOf(duration) / msgs.size());
 #endif
 
-  std::vector<std::string> msg_id_list;
-  msg_id_list.reserve(msgs.size());
-
   for (const auto& msg : msgs) {
-    msg_id_list.emplace_back(msg.getMsgId());
+    const std::string& message_id = msg.getMsgId();
+
+    // Release message number and memory quota
+    process_queue_shared_ptr->releaseQuota(message_id);
+
 #ifdef ENABLE_TRACING
     nostd::shared_ptr<trace::Span> span = nostd::shared_ptr<trace::Span>(nullptr);
     trace::EndSpanOptions end_options;
@@ -184,8 +165,6 @@ void ConsumeMessageConcurrentlyService::consumeTask(const ProcessQueueWeakPtr& p
     }
 #endif
 
-    process_queue_shared_ptr->messageCachedNumber().fetch_sub(1, std::memory_order_relaxed);
-
 #ifdef ENABLE_TRACING
     if (span) {
       span->SetAttribute(TracingUtility::get().expired_, false);
@@ -196,29 +175,29 @@ void ConsumeMessageConcurrentlyService::consumeTask(const ProcessQueueWeakPtr& p
 
     if (MessageModel::CLUSTERING == consumer->messageModel()) {
       if (status == CONSUME_SUCCESS) {
-        auto ack_callback = [process_queue_shared_ptr, msg](bool ok) {
+        auto callback = [process_queue_shared_ptr, message_id](bool ok) {
           if (ok) {
             SPDLOG_DEBUG("Acknowledge message[MessageQueue={}, MsgId={}] OK", process_queue_shared_ptr->simpleName(),
-                         msg.getMsgId());
+                         message_id);
           } else {
             SPDLOG_WARN("Failed to acknowledge message[MessageQueue={}, MsgId={}]",
-                        process_queue_shared_ptr->simpleName(), msg.getMsgId());
+                        process_queue_shared_ptr->simpleName(), message_id);
           }
         };
-        consumer->ack(msg, ack_callback);
+        consumer->ack(msg, callback);
       } else {
-        auto nack_callback = [process_queue_shared_ptr, msg](bool ok) {
+        auto callback = [process_queue_shared_ptr, message_id](bool ok) {
           if (ok) {
             SPDLOG_DEBUG("Nack message[MessageQueue={}, MsgId={}] OK", process_queue_shared_ptr->simpleName(),
-                         msg.getMsgId());
+                         message_id);
           } else {
             SPDLOG_INFO(
                 "Failed to negative acknowledge message[MessageQueue={}, MsgId={}]. Message will be re-consumed "
                 "after default invisible time",
-                process_queue_shared_ptr->simpleName(), msg.getMsgId());
+                process_queue_shared_ptr->simpleName(), message_id);
           }
         };
-        consumer->nack(msg, nack_callback);
+        consumer->nack(msg, callback);
       }
     }
   }
@@ -228,23 +207,6 @@ void ConsumeMessageConcurrentlyService::consumeTask(const ProcessQueueWeakPtr& p
       consumer->offset_store_->updateOffset(process_queue_shared_ptr->getMQMessageQueue(),
                                             process_queue_shared_ptr->nextOffset());
     }
-  }
-
-  // Log client consume-time costs
-  SPDLOG_DEBUG("Business callback spent {}ms processing {} messages. Message-identifier-list: {}",
-               MixAll::millisecondsOf(duration), msgs.size(),
-               absl::StrJoin(msg_id_list.begin(), msg_id_list.end(), ","));
-
-  bool signal_dispatcher = false;
-  {
-    absl::MutexLock lk(&rate_limiter_table_mtx_);
-    if (rate_limiter_table_.contains(topic)) {
-      signal_dispatcher = true;
-    }
-  }
-
-  if (signal_dispatcher) {
-    signalDispatcher();
   }
 }
 

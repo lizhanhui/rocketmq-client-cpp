@@ -11,6 +11,7 @@
 #include "ReceiveMessageCallback.h"
 #include "TopicAssignmentInfo.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "apache/rocketmq/v1/service.pb.h"
 #include "rocketmq/ConsumerType.h"
 #include "rocketmq/MQMessageExt.h"
@@ -47,18 +48,20 @@ public:
 
   std::string topic() const { return message_queue_.getTopic(); }
 
+  bool hasPendingMessages() const LOCKS_EXCLUDED(messages_mtx_);
+
   /**
    * Put message fetched from broker into cache.
    *
    * @param messages
    */
-  void cacheMessages(const std::vector<MQMessageExt>& messages) LOCKS_EXCLUDED(cached_messages_mtx_);
+  void cacheMessages(const std::vector<MQMessageExt>& messages) LOCKS_EXCLUDED(messages_mtx_);
 
   /**
    * @return Number of messages that is not yet dispatched to thread pool, likely, due to topic-rate-limiting.
    */
-  uint32_t cachedMessagesSize() const LOCKS_EXCLUDED(cached_messages_mtx_) {
-    absl::MutexLock lk(&cached_messages_mtx_);
+  uint32_t cachedMessagesSize() const LOCKS_EXCLUDED(messages_mtx_) {
+    absl::MutexLock lk(&messages_mtx_);
     return cached_messages_.size();
   }
 
@@ -68,11 +71,9 @@ public:
    * @param messages
    * @return true if there are more messages to consume in cache
    */
-  bool consume(int batch_size, std::vector<MQMessageExt>& messages) LOCKS_EXCLUDED(cached_messages_mtx_);
+  bool take(int batch_size, std::vector<MQMessageExt>& messages) LOCKS_EXCLUDED(messages_mtx_);
 
   void updateThrottleTimestamp() { last_throttle_timestamp_ = std::chrono::steady_clock::now(); }
-
-  std::atomic_int& messageCachedNumber() { return message_cached_number_; }
 
   ConsumeMessageType consumeType() const { return consume_type_; }
 
@@ -82,6 +83,8 @@ public:
   }
 
   int64_t nextOffset() const { return next_offset_; }
+
+  void releaseQuota(const std::string& handle) LOCKS_EXCLUDED(messages_mtx_);
 
 private:
   MQMessageQueue message_queue_;
@@ -122,8 +125,16 @@ private:
 
   std::shared_ptr<ReceiveMessageCallback> callback_;
 
-  mutable std::vector<MQMessageExt> cached_messages_;
-  mutable absl::Mutex cached_messages_mtx_;
+  /**
+   * Messages that are pending to be submitted to thread pool.
+   */
+  mutable std::vector<MQMessageExt> cached_messages_ GUARDED_BY(messages_mtx_);
+
+  /**
+   * Handle of messages that are submitted to thread pool but has not yet been acknowledged/negatively acknowledged.
+   */
+  mutable absl::flat_hash_map<std::string, std::size_t> inflight_handles_ GUARDED_BY(messages_mtx_);
+  mutable absl::Mutex messages_mtx_;
 
   int64_t next_offset_{-1};
 

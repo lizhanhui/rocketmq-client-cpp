@@ -38,13 +38,7 @@ public:
    */
   virtual void shutdown();
 
-  /**
-   *
-   * @param process_queue_ptr
-   * @param permits submit at most permits messages to consume threads; if permits is negative, all messages in process
-   * queue should be submitted.
-   */
-  virtual void submitConsumeTask(const ProcessQueueWeakPtr& process_queue_ptr, int32_t permits) = 0;
+  virtual void submitConsumeTask(const ProcessQueueWeakPtr& process_queue_ptr) = 0;
 
   virtual MessageListenerType getConsumeMsgServiceListenerType() = 0;
 
@@ -61,9 +55,9 @@ public:
    */
   void throttle(const std::string& topic, uint32_t threshold);
 
-  bool hasConsumeRateLimiter(const std::string& topic) const;
+  bool hasConsumeRateLimiter(const std::string& topic) const LOCKS_EXCLUDED(rate_limiter_table_mtx_);
 
-  std::shared_ptr<RateLimiter<10>> rateLimiter(const std::string& topic) const;
+  std::shared_ptr<RateLimiter<10>> rateLimiter(const std::string& topic) const LOCKS_EXCLUDED(rate_limiter_table_mtx_);
 
 protected:
   RateLimiterObserver rate_limiter_observer_;
@@ -101,7 +95,7 @@ public:
 
   void shutdown() override;
 
-  void submitConsumeTask(const ProcessQueueWeakPtr& process_queue, int32_t permits) override;
+  void submitConsumeTask(const ProcessQueueWeakPtr& process_queue) override;
 
   MessageListenerType getConsumeMsgServiceListenerType() override;
 
@@ -120,7 +114,7 @@ public:
 
   void shutdown() override;
 
-  void submitConsumeTask(const ProcessQueueWeakPtr& process_queue, int32_t permits) override;
+  void submitConsumeTask(const ProcessQueueWeakPtr& process_queue) override;
 
   MessageListenerType getConsumeMsgServiceListenerType() override;
 
