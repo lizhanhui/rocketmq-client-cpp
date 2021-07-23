@@ -1007,7 +1007,7 @@ bool ClientInstance::wrapMessage(const rmq::Message& item, MQMessageExt& message
   }
 
   // Delivery Count
-  MessageAccessor::setDeliveryCount(message_ext, system_attributes.delivery_count());
+  MessageAccessor::setAttemptTimes(message_ext, system_attributes.delivery_count());
 
   // Trace-context
   MessageAccessor::setTraceContext(message_ext, system_attributes.trace_context());

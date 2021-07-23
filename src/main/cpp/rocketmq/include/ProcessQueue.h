@@ -86,6 +86,15 @@ public:
 
   void releaseQuota(const std::string& handle) LOCKS_EXCLUDED(messages_mtx_);
 
+  bool unbindFifoConsumeTask() const {
+    return submitted_.load(std::memory_order_relaxed);
+  }
+
+  bool bindFifoConsumeTask() {
+    bool expected = false;
+    return submitted_.compare_exchange_strong(expected, true, std::memory_order_relaxed);
+  }
+
 private:
   MQMessageQueue message_queue_;
 
@@ -137,6 +146,11 @@ private:
   mutable absl::Mutex messages_mtx_;
 
   int64_t next_offset_{-1};
+
+  /**
+   * If this process queue is used in FIFO scenario, this field marks if there is an task in thread pool.
+   */
+  std::atomic_bool submitted_{false};
 
   void popMessage();
   void wrapPopMessageRequest(absl::flat_hash_map<std::string, std::string>& metadata,

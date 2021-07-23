@@ -122,7 +122,10 @@ protected:
   void dispatch() override;
 
 private:
-  void consumeTask(const ProcessQueueWeakPtr& process_queue, const std::vector<MQMessageExt>& msgs);
+  void consumeTask(const ProcessQueueWeakPtr& process_queue, std::vector<MQMessageExt>& msgs);
+
+  void submitConsumeTask0(const std::shared_ptr<DefaultMQPushConsumerImpl>& consumer, ProcessQueueWeakPtr process_queue,
+                          std::vector<MQMessageExt> messages);
 };
 
 ROCKETMQ_NAMESPACE_END

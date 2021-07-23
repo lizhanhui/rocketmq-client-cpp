@@ -135,7 +135,7 @@ const std::string& MQMessageExt::getMsgId() const { return impl_->system_attribu
 
 int64_t MQMessageExt::getQueueOffset() const { return impl_->system_attribute_.partition_offset; }
 
-int32_t MQMessageExt::getReconsumeTimes() const { return impl_->system_attribute_.delivery_count; }
+int32_t MQMessageExt::getReconsumeTimes() const { return impl_->system_attribute_.attempt_times; }
 
 const std::string& MQMessageExt::receiptHandle() const { return impl_->system_attribute_.receipt_handle; }
 
@@ -177,8 +177,8 @@ void MessageAccessor::setDeliveryTimestamp(MQMessageExt& message, absl::Time del
   message.impl_->system_attribute_.delivery_timestamp = delivery_timestamp;
 }
 
-void MessageAccessor::setDeliveryCount(MQMessageExt& message, int32_t delivery_count) {
-  message.impl_->system_attribute_.delivery_count = delivery_count;
+void MessageAccessor::setAttemptTimes(MQMessageExt& message, int32_t attempt_times) {
+  message.impl_->system_attribute_.attempt_times = attempt_times;
 }
 
 void MessageAccessor::setDecodedTimestamp(MQMessageExt& message, absl::Time decode_timestamp) {
