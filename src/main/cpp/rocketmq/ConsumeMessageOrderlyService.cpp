@@ -162,7 +162,7 @@ void ConsumeMessageOrderlyService::consumeTask(const ProcessQueueWeakPtr& proces
         submitConsumeTask0(consumer, process_queue, std::move(msgs));
         SPDLOG_INFO("Business callback failed to process FIFO messages. Re-submit consume task back to thread pool");
       } else {
-        // Move them to DLQ
+        // TODO: Move them to DLQ
       }
     }
   } else if (MessageModel::BROADCASTING == consumer->messageModel()) {
