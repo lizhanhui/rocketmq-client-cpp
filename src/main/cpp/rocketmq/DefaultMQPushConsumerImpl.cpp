@@ -31,7 +31,7 @@ void AsyncReceiveMessageCallback::onSuccess(ReceiveMessageResult& result) {
     SPDLOG_DEBUG("Receive messages from broker[host={}] returns with status=FOUND, msgListSize={}, queue={}",
                  result.sourceHost(), result.getMsgFoundList().size(), process_queue_shared_ptr->simpleName());
     process_queue_shared_ptr->cacheMessages(result.getMsgFoundList());
-    impl->getConsumeMessageService()->dispatch();
+    impl->getConsumeMessageService()->signalDispatcher();
 
     if (process_queue_shared_ptr->consumeType() == ConsumeMessageType::PULL) {
       process_queue_shared_ptr->nextOffset(result.next_offset_);
@@ -41,7 +41,7 @@ void AsyncReceiveMessageCallback::onSuccess(ReceiveMessageResult& result) {
   case ReceiveMessageStatus::DATA_CORRUPTED:
     if (process_queue_shared_ptr->consumeType() == POP) {
       process_queue_shared_ptr->cacheMessages(result.messages_);
-      impl->getConsumeMessageService()->dispatch();
+      impl->getConsumeMessageService()->signalDispatcher();
     }
     checkThrottleThenReceive();
     break;
@@ -190,7 +190,10 @@ void DefaultMQPushConsumerImpl::start() {
         consume_message_service_->throttle(item.first, item.second);
       }
     }
+  } else {
+    SPDLOG_WARN("Message listener is unexpected nullptr");
   }
+
   std::weak_ptr<DefaultMQPushConsumerImpl> consumer_weak_ptr(shared_from_this());
   auto scan_assignment_functor = [consumer_weak_ptr]() {
     std::shared_ptr<DefaultMQPushConsumerImpl> consumer = consumer_weak_ptr.lock();

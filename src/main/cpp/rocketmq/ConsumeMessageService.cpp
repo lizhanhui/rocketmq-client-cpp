@@ -2,6 +2,52 @@
 
 ROCKETMQ_NAMESPACE_BEGIN
 
+ConsumeMessageService::ConsumeMessageService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer, int thread_count,
+                                             MQMessageListener* message_listener_ptr)
+    : state_(State::CREATED), thread_count_(thread_count), message_listener_ptr_(message_listener_ptr),
+      pool_(absl::make_unique<grpc::DynamicThreadPool>(thread_count_)), consumer_weak_ptr_(std::move(consumer)) {}
+
+/**
+ *  Loop each process queue
+ *  If there is message to dispatch
+ *  Then
+ *     If Not rate limiter configured or has permits
+ *       Submit consume task
+ *     Else
+ *       Continue
+ *  Else
+ *     Continue
+ *  Wait on condition variable
+ *
+ *  Once consume task completes
+ *  If the topic were configured with rate limiter
+ *  Then Wake up dispatch_thread
+ */
+void ConsumeMessageService::start() {
+  State expected = State::CREATED;
+  if (state_.compare_exchange_strong(expected, State::STARTING, std::memory_order_relaxed)) {
+    dispatch_thread_ = std::thread([this] {
+      State current_state = state_.load(std::memory_order_relaxed);
+      while (State::STOPPED != current_state && State::STOPPING != current_state) {
+        dispatch();
+        {
+          absl::MutexLock lk(&dispatch_mtx_);
+          dispatch_cv_.WaitWithTimeout(&dispatch_mtx_, absl::Milliseconds(100));
+        }
+
+        // Update current state
+        current_state = state_.load(std::memory_order_relaxed);
+      }
+    });
+  }
+}
+
+void ConsumeMessageService::signalDispatcher() {
+  absl::MutexLock lk(&dispatch_mtx_);
+  // Wake up dispatch_thread_
+  dispatch_cv_.Signal();
+}
+
 void ConsumeMessageService::throttle(const std::string& topic, uint32_t threshold) {
   absl::MutexLock lk(&rate_limiter_table_mtx_);
   std::shared_ptr<RateLimiter<10>> rate_limiter = std::make_shared<RateLimiter<10>>(threshold);
@@ -9,7 +55,21 @@ void ConsumeMessageService::throttle(const std::string& topic, uint32_t threshol
   rate_limiter_observer_.subscribe(rate_limiter);
 }
 
-void ConsumeMessageService::shutdown() { rate_limiter_observer_.stop(); }
+void ConsumeMessageService::shutdown() {
+  State expected = State::STOPPING;
+  if (state_.compare_exchange_strong(expected, State::STOPPED, std::memory_order_relaxed)) {
+    {
+      absl::MutexLock lk(&dispatch_mtx_);
+      dispatch_cv_.SignalAll();
+    }
+
+    if (dispatch_thread_.joinable()) {
+      dispatch_thread_.join();
+    }
+
+    rate_limiter_observer_.stop();
+  }
+}
 
 bool ConsumeMessageService::hasConsumeRateLimiter(const std::string& topic) const {
   absl::MutexLock lk(&rate_limiter_table_mtx_);

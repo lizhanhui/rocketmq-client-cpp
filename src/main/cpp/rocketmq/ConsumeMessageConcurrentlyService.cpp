@@ -3,8 +3,8 @@
 #include "LoggerImpl.h"
 #include "Protocol.h"
 #include "TracingUtility.h"
-#include "absl/strings/str_join.h"
 #include "absl/memory/memory.h"
+#include "absl/strings/str_join.h"
 #include <limits>
 
 ROCKETMQ_NAMESPACE_BEGIN
@@ -12,49 +12,26 @@ ROCKETMQ_NAMESPACE_BEGIN
 ConsumeMessageConcurrentlyService::ConsumeMessageConcurrentlyService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer,
                                                                      int thread_count,
                                                                      MQMessageListener* message_listener_ptr)
-    : thread_count_(thread_count), message_listener_ptr_(message_listener_ptr), state_(State::CREATED),
-      pool_(absl::make_unique<grpc::DynamicThreadPool>(thread_count_)), consumer_weak_ptr_(std::move(consumer)) {}
+    : ConsumeMessageService(std::move(consumer), thread_count, message_listener_ptr) {}
 
 void ConsumeMessageConcurrentlyService::start() {
-  // Loop each process queue
-  // If there is message to dispatch
-  // Then
-  //    If Not rate limiter configured or has permits
-  //      Submit consume task
-  //    Else
-  //      Continue
-  // Else
-  //    Continue
-  // Wait on condition variable
-
-  // Once consume task completes
-  // If the topic were configured with rate limiter
-  // Then Wake up dispatch_thread
-
-  state_.store(State::STARTING, std::memory_order_relaxed);
-  dispatch_thread_ = std::thread([this] {
-    while (State::STOPPED != state_.load(std::memory_order_relaxed)) {
-      dispatch0();
-      {
-        absl::MutexLock lk(&dispatch_mtx_);
-        dispatch_cv_.WaitWithTimeout(&dispatch_mtx_, absl::Milliseconds(100));
-      }
-    }
-  });
+  ConsumeMessageService::start();
+  State expected = State::STARTING;
+  if (state_.compare_exchange_strong(expected, State::STARTED)) {
+    SPDLOG_DEBUG("ConsumeMessageConcurrentlyService started");
+  }
 }
 
 void ConsumeMessageConcurrentlyService::shutdown() {
-  state_.store(State::STOPPED, std::memory_order_relaxed);
-  {
-    absl::MutexLock lk(&dispatch_mtx_);
-    dispatch_cv_.SignalAll();
+  while (State::STARTING == state_.load(std::memory_order_relaxed)) {
+    absl::SleepFor(absl::Milliseconds(10));
   }
-  if (dispatch_thread_.joinable()) {
-    dispatch_thread_.join();
+
+  State expected = State::STARTED;
+  if (state_.compare_exchange_strong(expected, State::STOPPING)) {
+    ConsumeMessageService::shutdown();
+    SPDLOG_DEBUG("ConsumeMessageConcurrentlyService shut down");
   }
-  ConsumeMessageService::shutdown();
-  pool_.reset();
-  SPDLOG_DEBUG("ConsumeMessageConcurrentlyService thread pool stop");
 }
 
 void ConsumeMessageConcurrentlyService::submitConsumeTask(const ProcessQueueWeakPtr& process_queue, int32_t permits) {
@@ -119,20 +96,10 @@ MessageListenerType ConsumeMessageConcurrentlyService::getConsumeMsgServiceListe
   return messageListenerConcurrently;
 }
 
-void ConsumeMessageConcurrentlyService::stopThreadPool() {
-  // do nothing, ThreadPool destructor will be invoked automatically
-}
-
 void ConsumeMessageConcurrentlyService::dispatch() {
-  absl::MutexLock lk(&dispatch_mtx_);
-  // Wake up dispatch_thread_
-  dispatch_cv_.Signal();
-}
-
-void ConsumeMessageConcurrentlyService::dispatch0() {
   std::shared_ptr<DefaultMQPushConsumerImpl> consumer = consumer_weak_ptr_.lock();
   if (!consumer) {
-    SPDLOG_WARN("The consumer was destructed");
+    SPDLOG_WARN("The consumer has already destructed");
     return;
   }
 
@@ -164,9 +131,9 @@ void ConsumeMessageConcurrentlyService::consumeTask(const ProcessQueueWeakPtr& p
   }
   std::string topic = msgs.begin()->getTopic();
   ConsumeStatus status;
-  std::shared_ptr<DefaultMQPushConsumerImpl> consumer_shared_ptr = consumer_weak_ptr_.lock();
-  // consumer may be destructed here.
-  if (!consumer_shared_ptr) {
+  std::shared_ptr<DefaultMQPushConsumerImpl> consumer = consumer_weak_ptr_.lock();
+  // consumer might have been destructed.
+  if (!consumer) {
     return;
   }
   // consumer does not start yet.
@@ -227,7 +194,7 @@ void ConsumeMessageConcurrentlyService::consumeTask(const ProcessQueueWeakPtr& p
     }
 #endif
 
-    if (MessageModel::CLUSTERING == consumer_shared_ptr->messageModel()) {
+    if (MessageModel::CLUSTERING == consumer->messageModel()) {
       if (status == CONSUME_SUCCESS) {
         auto ack_callback = [process_queue_shared_ptr, msg](bool ok) {
           if (ok) {
@@ -238,7 +205,7 @@ void ConsumeMessageConcurrentlyService::consumeTask(const ProcessQueueWeakPtr& p
                         process_queue_shared_ptr->simpleName(), msg.getMsgId());
           }
         };
-        consumer_shared_ptr->ack(msg, ack_callback);
+        consumer->ack(msg, ack_callback);
       } else {
         auto nack_callback = [process_queue_shared_ptr, msg](bool ok) {
           if (ok) {
@@ -251,15 +218,15 @@ void ConsumeMessageConcurrentlyService::consumeTask(const ProcessQueueWeakPtr& p
                 process_queue_shared_ptr->simpleName(), msg.getMsgId());
           }
         };
-        consumer_shared_ptr->nack(msg, nack_callback);
+        consumer->nack(msg, nack_callback);
       }
     }
   }
 
-  if (MessageModel::BROADCASTING == consumer_shared_ptr->messageModel()) {
-    if (consumer_shared_ptr->offset_store_) {
-      consumer_shared_ptr->offset_store_->updateOffset(process_queue_shared_ptr->getMQMessageQueue(),
-                                                       process_queue_shared_ptr->nextOffset());
+  if (MessageModel::BROADCASTING == consumer->messageModel()) {
+    if (consumer->offset_store_) {
+      consumer->offset_store_->updateOffset(process_queue_shared_ptr->getMQMessageQueue(),
+                                            process_queue_shared_ptr->nextOffset());
     }
   }
 
@@ -268,16 +235,16 @@ void ConsumeMessageConcurrentlyService::consumeTask(const ProcessQueueWeakPtr& p
                MixAll::millisecondsOf(duration), msgs.size(),
                absl::StrJoin(msg_id_list.begin(), msg_id_list.end(), ","));
 
-  bool need_dispatch = false;
+  bool signal_dispatcher = false;
   {
     absl::MutexLock lk(&rate_limiter_table_mtx_);
     if (rate_limiter_table_.contains(topic)) {
-      need_dispatch = true;
+      signal_dispatcher = true;
     }
   }
 
-  if (need_dispatch) {
-    dispatch();
+  if (signal_dispatcher) {
+    signalDispatcher();
   }
 }
 
