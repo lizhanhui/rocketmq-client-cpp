@@ -44,18 +44,24 @@ bool ProcessQueue::expired() const {
 }
 
 bool ProcessQueue::shouldThrottle() const {
-  std::size_t current;
-  {
-    absl::MutexLock lk(&messages_mtx_);
-    current = cached_messages_.size() + cached_message_quantity_.load(std::memory_order_relaxed);
+  std::size_t count = cached_message_quantity_.load(std::memory_order_relaxed);
+  bool need_throttle = count >= max_cache_quantity_;
+  if (need_throttle) {
+    SPDLOG_INFO("{}: Number of locally cached messages is {}, which exceeds threshold={}", simple_name_, count,
+                max_cache_quantity_);
+    return true;
   }
 
-  bool need_throttle = current >= max_cache_quantity_;
-  if (need_throttle) {
-    SPDLOG_INFO("{}: Number of locally cached messages is {}, which exceeds threshold={}", simple_name_, current,
-                max_cache_quantity_);
+  if (max_cache_memory_) {
+    uint64_t bytes = cached_message_memory_.load(std::memory_order_relaxed);
+    need_throttle = bytes >= max_cache_memory_;
+    if (need_throttle) {
+      SPDLOG_INFO("{}: Locally cached messages take {} bytes, which exceeds threshold={}", simple_name_, bytes,
+                  max_cache_memory_);
+      return true;
+    }
   }
-  return need_throttle;
+  return false;
 }
 
 void ProcessQueue::receiveMessage() {
@@ -90,6 +96,8 @@ void ProcessQueue::pullMessage() {
   rmq::PullMessageRequest request;
   absl::flat_hash_map<std::string, std::string> metadata;
   wrapPullMessageRequest(metadata, request);
+  last_poll_timestamp_ = std::chrono::steady_clock::now();
+  SPDLOG_DEBUG("Try to pull message from {}", message_queue_.simpleName());
   client_instance_->pullMessage(message_queue_.serviceAddress(), metadata, request, callback_);
 }
 
