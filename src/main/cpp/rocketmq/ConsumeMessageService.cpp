@@ -5,8 +5,9 @@ ROCKETMQ_NAMESPACE_BEGIN
 
 ConsumeMessageService::ConsumeMessageService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer, int thread_count,
                                              MQMessageListener* message_listener_ptr)
-    : state_(State::CREATED), thread_count_(thread_count), message_listener_ptr_(message_listener_ptr),
-      pool_(absl::make_unique<grpc::DynamicThreadPool>(thread_count_)), consumer_weak_ptr_(std::move(consumer)) {}
+    : state_(State::CREATED), thread_count_(thread_count),
+      pool_(absl::make_unique<grpc::DynamicThreadPool>(thread_count_)), consumer_weak_ptr_(std::move(consumer)),
+      message_listener_ptr_(message_listener_ptr) {}
 
 /**
  *  Loop each process queue
