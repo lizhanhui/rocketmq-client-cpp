@@ -147,6 +147,12 @@ public:
             const NackMessageRequest& request, std::chrono::milliseconds timeout,
             const std::function<void(bool)>& callback);
 
+  void
+  redirectToDeadLetterQueue(const std::string& target_host,
+                            const absl::flat_hash_map<std::string, std::string>& metadata,
+                            const SendMessageToDeadLetterQueueRequest& request, std::chrono::milliseconds timeout,
+                            const std::function<void(const InvocationContext<SendMessageToDeadLetterQueueResponse>*)>& cb);
+
   /**
    * End a transaction asynchronously.
    *

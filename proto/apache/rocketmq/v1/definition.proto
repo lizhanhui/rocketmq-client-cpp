@@ -94,6 +94,7 @@ message HeartbeatEntry {
         ProducerGroup producer_group = 2;
         ConsumerGroup consumer_group = 3;
     }
+    bool need_rebalance = 4;
 }
 
 enum AddressScheme {
@@ -245,13 +246,19 @@ message SystemAttribute {
     // again using certain back-off strategy.
     int32 delivery_count = 17;
 
-    // Message producer load-balance group if applicable.
-    Resource producer_group = 18;
+    // Message's max delivery count, if message's delivery count exceed this value, it will be sent to dlq topic.
+    int32 max_delivery_count = 18;
 
-    string message_group = 19;
+    // Message producer load-balance group if applicable.
+    Resource producer_group = 19;
+
+    string message_group = 20;
 
     // Trace context.
-    string trace_context = 20;
+    string trace_context = 21;
+
+    // Correlated transaction
+    string transaction_id = 22;
 }
 
 message Message {

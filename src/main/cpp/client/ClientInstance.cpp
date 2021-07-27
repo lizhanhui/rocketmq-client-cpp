@@ -1202,6 +1202,39 @@ void ClientInstance::pullMessage(const std::string& target_host,
   client->asyncPull(request, invocation_context);
 }
 
+void ClientInstance::redirectToDeadLetterQueue(
+    const std::string& target_host, const absl::flat_hash_map<std::string, std::string>& metadata,
+    const SendMessageToDeadLetterQueueRequest& request, std::chrono::milliseconds timeout,
+    const std::function<void(const InvocationContext<SendMessageToDeadLetterQueueResponse>*)>& cb) {
+  auto client = getRpcClient(target_host);
+  if (!client) {
+    cb(nullptr);
+    return;
+  }
+
+  auto invocation_context = new InvocationContext<SendMessageToDeadLetterQueueResponse>();
+  invocation_context->remote_address = target_host;
+  invocation_context->context.set_deadline(std::chrono::system_clock::now() + timeout);
+
+  for (const auto& item : metadata) {
+    invocation_context->context.AddMetadata(item.first, item.second);
+  }
+
+  auto callback = [cb](const InvocationContext<SendMessageToDeadLetterQueueResponse>* invocation_context) {
+    if (!invocation_context->status.ok()) {
+      SPDLOG_WARN("Failed to transmit SendMessageToDeadLetterQueueRequest to {}", invocation_context->remote_address);
+      cb(invocation_context);
+      return;
+    }
+
+    SPDLOG_DEBUG("Received redirectToDeadLetterQueue response from server[host={}]",
+                 invocation_context->remote_address);
+    cb(invocation_context);
+  };
+  invocation_context->callback = callback;
+  client->asyncSendMessageToDeadLetterQueue(request, invocation_context);
+}
+
 void ClientInstance::logStats() {
   std::string stats;
   latency_histogram_.reportAndReset(stats);

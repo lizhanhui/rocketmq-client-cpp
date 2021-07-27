@@ -1,5 +1,6 @@
 #pragma once
 
+#include <apache/rocketmq/v1/service.pb.h>
 #include <grpcpp/grpcpp.h>
 
 #include "InvocationContext.h"
@@ -52,6 +53,8 @@ using QueryOffsetRequest = rmq::QueryOffsetRequest;
 using QueryOffsetResponse = rmq::QueryOffsetResponse;
 using PullMessageRequest = rmq::PullMessageRequest;
 using PullMessageResponse = rmq::PullMessageResponse;
+using SendMessageToDeadLetterQueueRequest = rmq::SendMessageToDeadLetterQueueRequest;
+using SendMessageToDeadLetterQueueResponse = rmq::SendMessageToDeadLetterQueueResponse;
 
 class RpcClient {
 public:
@@ -96,6 +99,10 @@ public:
 
   virtual void asyncPull(const PullMessageRequest& request,
                          InvocationContext<PullMessageResponse>* invocation_context) = 0;
+
+  virtual void
+  asyncSendMessageToDeadLetterQueue(const SendMessageToDeadLetterQueueRequest& request,
+                                    InvocationContext<SendMessageToDeadLetterQueueResponse>* invocation_context) = 0;
 
   /**
    * Indicate if heartbeat is required.

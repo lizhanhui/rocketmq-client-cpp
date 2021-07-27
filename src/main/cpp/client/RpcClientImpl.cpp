@@ -142,4 +142,14 @@ void RpcClientImpl::asyncPull(const PullMessageRequest& request,
                                               invocation_context);
 }
 
+void RpcClientImpl::asyncSendMessageToDeadLetterQueue(
+    const SendMessageToDeadLetterQueueRequest& request,
+    InvocationContext<SendMessageToDeadLetterQueueResponse>* invocation_context) {
+  invocation_context->response_reader =
+      stub_->PrepareAsyncSendMessageToDeadLetterQueue(&invocation_context->context, request, completion_queue_.get());
+  invocation_context->response_reader->StartCall();
+  invocation_context->response_reader->Finish(&invocation_context->response, &invocation_context->status,
+                                              invocation_context);
+}
+
 ROCKETMQ_NAMESPACE_END
