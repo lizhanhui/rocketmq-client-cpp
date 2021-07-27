@@ -135,7 +135,7 @@ void ConsumeMessageConcurrentlyService::consumeTask(const ProcessQueueWeakPtr& p
       const std::string& message_id = msg.getMsgId();
 
       // Release message number and memory quota
-      process_queue_ptr->release(message_id, msg.getQueueOffset());
+      process_queue_ptr->release(msg.getBody().size(), msg.getQueueOffset());
 
 #ifdef ENABLE_TRACING
       nostd::shared_ptr<trace::Span> span = nostd::shared_ptr<trace::Span>(nullptr);

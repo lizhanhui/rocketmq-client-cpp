@@ -42,6 +42,13 @@ template <> struct less<ROCKETMQ_NAMESPACE::OffsetRecord> {
 ROCKETMQ_NAMESPACE_BEGIN
 
 class DefaultMQPushConsumerImpl;
+
+/**
+ * @brief Once messages are fetched(either pulled or popped) from remote server, they are firstly put into cache.
+ * Dispatcher thread, after waking up, will submit them into thread-pool. Messages at this phase are called "inflight"
+ * state. Once messages are processed by user-passed-in callback, their quota will be released for future incoming
+ * messages.
+ */
 class ProcessQueue {
 public:
   ProcessQueue(MQMessageQueue message_queue, FilterExpression filter_expression, ConsumeMessageType consume_type,
@@ -108,7 +115,7 @@ public:
 
   bool committedOffset(int64_t& offset) LOCKS_EXCLUDED(offsets_mtx_);
 
-  void release(const std::string& message_id, int64_t offset) LOCKS_EXCLUDED(messages_mtx_, offsets_mtx_);
+  void release(uint64_t body_size, int64_t offset) LOCKS_EXCLUDED(messages_mtx_, offsets_mtx_);
 
   bool unbindFifoConsumeTask() {
     bool expected = true;
@@ -130,7 +137,7 @@ private:
 
   ConsumeMessageType consume_type_{ConsumeMessageType::POP};
 
-  int max_message_number_;
+  int batch_size_;
   std::chrono::milliseconds invisible_time_;
 
   std::chrono::steady_clock::time_point last_poll_timestamp_{std::chrono::steady_clock::now()};
@@ -144,7 +151,12 @@ private:
   /**
    * Maximum number of locally cached messages. Once exceeding this threshold, fetch-loop should be throttled.
    */
-  std::size_t max_cache_size_;
+  uint32_t max_cache_quantity_;
+
+  /**
+   * Max cached memory in bytes
+   */
+  uint64_t max_cache_memory_;
 
   std::string simple_name_;
 
@@ -159,11 +171,19 @@ private:
    */
   mutable std::vector<MQMessageExt> cached_messages_ GUARDED_BY(messages_mtx_);
 
-  /**
-   * Handle of messages that are submitted to thread pool but has not yet been acknowledged/negatively acknowledged.
-   */
-  mutable absl::flat_hash_map<std::string, std::size_t> inflight_handles_ GUARDED_BY(messages_mtx_);
   mutable absl::Mutex messages_mtx_;
+
+  /**
+   * @brief Quantity of the cached messages.
+   *
+   */
+  std::atomic<uint32_t> cached_message_quantity_;
+
+  /**
+   * @brief Total body memory size of the cached messages.
+   *
+   */
+  std::atomic<uint64_t> cached_message_memory_;
 
   int64_t next_offset_{-1};
 

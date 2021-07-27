@@ -17,11 +17,9 @@ ROCKETMQ_NAMESPACE_BEGIN
 
 const int32_t MixAll::MASTER_BROKER_ID = 0;
 
-const int32_t MixAll::MAX_MESSAGE_NUMBER_PER_BATCH = 32;
+const int32_t MixAll::DEFAULT_FETCH_MESSAGE_BATCH_SIZE = 32;
 
 const uint32_t MixAll::MAX_MESSAGE_BODY_SIZE = 1024 * 1024 * 4;
-
-const char* MixAll::RETRY_GROUP_TOPIC_PREFIX = "%RETRY%";
 
 const RE2 MixAll::TOPIC_REGEX("[a-zA-Z0-9\\-_]{3,64}");
 

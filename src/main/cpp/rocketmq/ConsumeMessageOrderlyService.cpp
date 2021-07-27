@@ -123,7 +123,7 @@ void ConsumeMessageOrderlyService::consumeTask(const ProcessQueueWeakPtr& proces
       for (const auto& msg : msgs) {
         const std::string& message_id = msg.getMsgId();
         // Release message number and memory quota
-        process_queue_ptr->release(message_id, msg.getQueueOffset());
+        process_queue_ptr->release(msg.getBody().size(), msg.getQueueOffset());
         auto callback = [process_queue_ptr, message_id](bool ok) {
           if (ok) {
             SPDLOG_DEBUG("Acknowledge FIFO message[MessageQueue={}, MsgId={}] OK", process_queue_ptr->simpleName(),
@@ -157,7 +157,7 @@ void ConsumeMessageOrderlyService::consumeTask(const ProcessQueueWeakPtr& proces
     }
   } else if (MessageModel::BROADCASTING == consumer->messageModel()) {
     for (const auto& msg : msgs) {
-      process_queue_ptr->release(msg.getMsgId(), msg.getQueueOffset());
+      process_queue_ptr->release(msg.getBody().size(), msg.getQueueOffset());
       process_queue_ptr->nextOffset(msg.getQueueOffset());
     }
 

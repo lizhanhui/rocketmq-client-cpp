@@ -4,6 +4,7 @@
 #include "Metadata.h"
 #include "Protocol.h"
 #include "Signature.h"
+#include <atomic>
 #include <chrono>
 #include <memory>
 #include <utility>
@@ -17,10 +18,10 @@ ProcessQueue::ProcessQueue(MQMessageQueue message_queue, FilterExpression filter
                            std::weak_ptr<DefaultMQPushConsumerImpl> call_back_owner,
                            std::shared_ptr<ClientInstance> client_instance)
     : message_queue_(std::move(message_queue)), filter_expression_(std::move(filter_expression)),
-      consume_type_(consume_type), max_message_number_(MixAll::MAX_MESSAGE_NUMBER_PER_BATCH),
-      invisible_time_(MixAll::millisecondsOf(MixAll::DEFAULT_INVISIBLE_TIME_)), max_cache_size_(max_cache_size),
-      simple_name_(message_queue_.simpleName()), call_back_owner_(std::move(call_back_owner)),
-      client_instance_(std::move(client_instance)) {
+      consume_type_(consume_type), batch_size_(MixAll::DEFAULT_FETCH_MESSAGE_BATCH_SIZE),
+      invisible_time_(MixAll::millisecondsOf(MixAll::DEFAULT_INVISIBLE_TIME_)), max_cache_quantity_(max_cache_size),
+      max_cache_memory_(), simple_name_(message_queue_.simpleName()), call_back_owner_(std::move(call_back_owner)),
+      client_instance_(std::move(client_instance)), cached_message_quantity_(0), cached_message_memory_(0) {
   SPDLOG_DEBUG("Created ProcessQueue={}", simpleName());
 }
 
@@ -46,13 +47,13 @@ bool ProcessQueue::shouldThrottle() const {
   std::size_t current;
   {
     absl::MutexLock lk(&messages_mtx_);
-    current = cached_messages_.size() + inflight_handles_.size();
+    current = cached_messages_.size() + cached_message_quantity_.load(std::memory_order_relaxed);
   }
 
-  bool need_throttle = current >= max_cache_size_;
+  bool need_throttle = current >= max_cache_quantity_;
   if (need_throttle) {
     SPDLOG_INFO("{}: Number of locally cached messages is {}, which exceeds threshold={}", simple_name_, current,
-                max_cache_size_);
+                max_cache_quantity_);
   }
   return need_throttle;
 }
@@ -124,6 +125,8 @@ void ProcessQueue::cacheMessages(const std::vector<MQMessageExt>& messages) {
         continue;
       }
       cached_messages_.emplace_back(message);
+      cached_message_quantity_.fetch_add(1, std::memory_order_relaxed);
+      cached_message_memory_.fetch_add(message.getBody().size(), std::memory_order_relaxed);
       if (MessageModel::BROADCASTING == consumer->messageModel() && consumer->hasCustomOffsetStore()) {
         if (offsets_.size() == 1 && offsets_.begin()->released_) {
           int64_t previously_released = offsets_.begin()->offset_;
@@ -146,9 +149,6 @@ bool ProcessQueue::take(int batch_size, std::vector<MQMessageExt>& messages) {
       break;
     }
 
-    // Reserve quota
-    inflight_handles_.insert({it->getMsgId(), it->getBody().size()});
-
     messages.push_back(*it);
     it = cached_messages_.erase(it);
   }
@@ -164,16 +164,14 @@ bool ProcessQueue::committedOffset(int64_t& offset) {
   return true;
 }
 
-void ProcessQueue::release(const std::string& message_id, int64_t offset) {
+void ProcessQueue::release(uint64_t body_size, int64_t offset) {
   auto consumer = call_back_owner_.lock();
   if (!consumer) {
     return;
   }
 
-  {
-    absl::MutexLock lk(&messages_mtx_);
-    inflight_handles_.erase(message_id);
-  }
+  cached_message_quantity_.fetch_sub(1);
+  cached_message_memory_.fetch_sub(body_size);
 
   if (MessageModel::BROADCASTING == consumer->messageModel() && consumer->hasCustomOffsetStore()) {
     absl::MutexLock lk(&offsets_mtx_);
@@ -217,7 +215,7 @@ void ProcessQueue::wrapPopMessageRequest(absl::flat_hash_map<std::string, std::s
   }
 
   // Batch size
-  request.set_batch_size(max_message_number_);
+  request.set_batch_size(batch_size_);
 
   // Consume policy
   request.set_consume_policy(rmq::ConsumePolicy::RESUME);
