@@ -4,8 +4,10 @@
 #include "MessageAccessor.h"
 #include "MixAll.h"
 #include "Signature.h"
+#include "include/ProcessQueue.h"
 #include "rocketmq/MQClientException.h"
 #include <chrono>
+#include <string>
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -171,14 +173,14 @@ void DefaultMQPushConsumerImpl::start() {
   heartbeat();
 
   if (message_listener_ptr_) {
-    if (message_listener_ptr_->getMessageListenerType() == messageListenerOrderly) {
+    if (message_listener_ptr_->listenerType() == MessageListenerType::FIFO) {
       SPDLOG_INFO("start orderly consume service: {}", group_name_);
-      consume_message_service_ = std::make_shared<ConsumeMessageOrderlyService>(
+      consume_message_service_ = std::make_shared<ConsumeFifoMessageService>(
           shared_from_this(), consume_thread_pool_size_, message_listener_ptr_);
     } else {
       // For backward compatibility, by default, ConsumeMessageConcurrentlyService is assumed.
       SPDLOG_INFO("start concurrently consume service: {}", group_name_);
-      consume_message_service_ = std::make_shared<ConsumeMessageConcurrentlyService>(
+      consume_message_service_ = std::make_shared<ConsumeStandardMessageService>(
           shared_from_this(), consume_thread_pool_size_, message_listener_ptr_);
     }
     consume_message_service_->start();
@@ -532,7 +534,6 @@ void DefaultMQPushConsumerImpl::ack(const MQMessageExt& msg, const std::function
 
 void DefaultMQPushConsumerImpl::nack(const MQMessageExt& msg, const std::function<void(bool)>& callback) {
   std::string target_host = MessageAccessor::targetEndpoint(msg);
-  SPDLOG_DEBUG("Send message nack to broker. brokerAddress={}", target_host);
 
   absl::flat_hash_map<std::string, std::string> metadata;
   Signature::sign(this, metadata);
@@ -552,6 +553,29 @@ void DefaultMQPushConsumerImpl::nack(const MQMessageExt& msg, const std::functio
   request.set_max_reconsume_times(max_delivery_attempts_);
 
   client_instance_->nack(target_host, metadata, request, absl::ToChronoMilliseconds(io_timeout_), callback);
+  SPDLOG_DEBUG("Send message nack to broker server[host={}]", target_host);
+}
+
+void DefaultMQPushConsumerImpl::redirectToDLQ(const MQMessageExt& message, const std::function<void(bool)>& cb) {
+  std::string target_host = MessageAccessor::targetEndpoint(message);
+
+  absl::flat_hash_map<std::string, std::string> metadata;
+  Signature::sign(this, metadata);
+
+  SendMessageToDeadLetterQueueRequest request;
+  request.mutable_group()->set_arn(arn_);
+  request.mutable_group()->set_name(group_name_);
+
+  request.mutable_topic()->set_arn(arn_);
+  request.mutable_topic()->set_name(message.getTopic());
+
+  request.set_client_id(clientId());
+  request.set_message_id(message.getMsgId());
+
+  request.set_reconsume_times(message.getReconsumeTimes());
+  request.set_max_reconsume_times(max_delivery_attempts_);
+
+  client_instance_->redirectToDeadLetterQueue(target_host, metadata, request, absl::ToChronoMilliseconds(io_timeout_),  cb);
 }
 
 void DefaultMQPushConsumerImpl::wrapAckMessageRequest(const MQMessageExt& msg, AckMessageRequest& request) {
@@ -588,11 +612,11 @@ void DefaultMQPushConsumerImpl::maxCachedMessageNumberPerQueue(int max_cached_me
   }
 }
 
-void DefaultMQPushConsumerImpl::registerMessageListener(MQMessageListener* message_listener) {
+void DefaultMQPushConsumerImpl::registerMessageListener(MessageListener* message_listener) {
   message_listener_ptr_ = message_listener;
 }
 
-int DefaultMQPushConsumerImpl::getProcessQueueTableSize() {
+std::size_t DefaultMQPushConsumerImpl::getProcessQueueTableSize() {
   absl::MutexLock lock(&process_queue_table_mtx_);
   return process_queue_table_.size();
 }

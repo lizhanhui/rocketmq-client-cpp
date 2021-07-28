@@ -5,11 +5,11 @@
 
 #include "AsyncCallback.h"
 #include "ConsumerType.h"
+#include "CredentialsProvider.h"
 #include "ExpressionType.h"
 #include "Logger.h"
-#include "MQMessageListener.h"
 #include "MQMessageQueue.h"
-#include "CredentialsProvider.h"
+#include "MessageListener.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -30,7 +30,7 @@ public:
 
   void setConsumeFromWhere(ConsumeFromWhere policy);
 
-  void registerMessageListener(MQMessageListener* listener);
+  void registerMessageListener(MessageListener* listener);
 
   void setNamesrvAddr(const std::string& name_srv);
 

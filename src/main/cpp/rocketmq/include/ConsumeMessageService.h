@@ -6,7 +6,7 @@
 
 #include "ProcessQueue.h"
 #include "RateLimiter.h"
-#include "rocketmq/MQMessageListener.h"
+#include "rocketmq/MessageListener.h"
 #include "rocketmq/State.h"
 #include "src/cpp/server/dynamic_thread_pool.h"
 
@@ -17,7 +17,7 @@ class DefaultMQPushConsumerImpl;
 class ConsumeMessageService {
 public:
   ConsumeMessageService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer, int thread_count,
-                        MQMessageListener* message_listener_ptr);
+                        MessageListener* message_listener);
 
   virtual ~ConsumeMessageService() = default;
 
@@ -40,7 +40,7 @@ public:
 
   virtual void submitConsumeTask(const ProcessQueueWeakPtr& process_queue_ptr) = 0;
 
-  virtual MessageListenerType getConsumeMsgServiceListenerType() = 0;
+  virtual MessageListenerType messageListenerType() = 0;
 
   /**
    * Signal dispatcher thread to check new pending messages.
@@ -76,7 +76,7 @@ protected:
   std::thread dispatch_thread_;
   absl::CondVar dispatch_cv_;
 
-  MQMessageListener* message_listener_ptr_;
+  MessageListener* message_listener_;
 
   /**
    * Dispatch messages to thread pool. Implementation of this function should be sub-class specific.
@@ -84,12 +84,12 @@ protected:
   void dispatch();
 };
 
-class ConsumeMessageConcurrentlyService : public ConsumeMessageService {
+class ConsumeStandardMessageService : public ConsumeMessageService {
 public:
-  ConsumeMessageConcurrentlyService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer, int thread_count,
-                                    MQMessageListener* message_listener_ptr);
+  ConsumeStandardMessageService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer, int thread_count,
+                                MessageListener* message_listener_ptr);
 
-  ~ConsumeMessageConcurrentlyService() override = default;
+  ~ConsumeStandardMessageService() override = default;
 
   void start() override;
 
@@ -97,23 +97,24 @@ public:
 
   void submitConsumeTask(const ProcessQueueWeakPtr& process_queue) override;
 
-  MessageListenerType getConsumeMsgServiceListenerType() override;
+  MessageListenerType messageListenerType() override;
 
 private:
   void consumeTask(const ProcessQueueWeakPtr& process_queue, const std::vector<MQMessageExt>& msgs);
 };
 
-class ConsumeMessageOrderlyService : public ConsumeMessageService {
+class ConsumeFifoMessageService : public ConsumeMessageService,
+                                  public std::enable_shared_from_this<ConsumeFifoMessageService> {
 public:
-  ConsumeMessageOrderlyService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer_impl_ptr, int thread_count,
-                               MQMessageListener* message_listener_ptr);
+  ConsumeFifoMessageService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer_impl_ptr, int thread_count,
+                            MessageListener* message_listener_ptr);
   void start() override;
 
   void shutdown() override;
 
   void submitConsumeTask(const ProcessQueueWeakPtr& process_queue) override;
 
-  MessageListenerType getConsumeMsgServiceListenerType() override;
+  MessageListenerType messageListenerType() override;
 
 private:
   void consumeTask(const ProcessQueueWeakPtr& process_queue, std::vector<MQMessageExt>& msgs);

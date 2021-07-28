@@ -455,6 +455,10 @@ void BaseImpl::healthCheck() {
   }
 }
 
+void BaseImpl::schedule(const std::string& task_name, const std::function<void()>& task, std::chrono::milliseconds delay) {
+  client_instance_->getScheduler().schedule(task, task_name, delay, std::chrono::milliseconds(0));
+}
+
 void BaseImpl::onHealthCheckResponse(const std::string& endpoint, const InvocationContext<HealthCheckResponse>* ctx) {
   if (!ctx) {
     SPDLOG_WARN("ClientInstance does not have RPC client for {}. It might have been offline and thus cleaned",

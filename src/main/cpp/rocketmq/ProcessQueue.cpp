@@ -146,7 +146,7 @@ void ProcessQueue::cacheMessages(const std::vector<MQMessageExt>& messages) {
   }
 }
 
-bool ProcessQueue::take(int batch_size, std::vector<MQMessageExt>& messages) {
+bool ProcessQueue::take(uint32_t batch_size, std::vector<MQMessageExt>& messages) {
   absl::MutexLock lock(&messages_mtx_);
   if (cached_messages_.empty()) {
     return false;

@@ -100,7 +100,7 @@ public:
    * @param messages
    * @return true if there are more messages to consume in cache
    */
-  bool take(int batch_size, std::vector<MQMessageExt>& messages) LOCKS_EXCLUDED(messages_mtx_);
+  bool take(uint32_t batch_size, std::vector<MQMessageExt>& messages) LOCKS_EXCLUDED(messages_mtx_);
 
   void updateThrottleTimestamp() { last_throttle_timestamp_ = std::chrono::steady_clock::now(); }
 

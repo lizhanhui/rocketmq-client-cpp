@@ -4,27 +4,11 @@
 ROCKETMQ_NAMESPACE_BEGIN
 
 ConsumeMessageService::ConsumeMessageService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer, int thread_count,
-                                             MQMessageListener* message_listener_ptr)
+                                             MessageListener* message_listener)
     : state_(State::CREATED), thread_count_(thread_count),
       pool_(absl::make_unique<grpc::DynamicThreadPool>(thread_count_)), consumer_weak_ptr_(std::move(consumer)),
-      message_listener_ptr_(message_listener_ptr) {}
+      message_listener_(message_listener) {}
 
-/**
- *  Loop each process queue
- *  If there is message to dispatch
- *  Then
- *     If Not rate limiter configured or has permits
- *       Submit consume task
- *     Else
- *       Continue
- *  Else
- *     Continue
- *  Wait on condition variable
- *
- *  Once consume task completes
- *  If the topic were configured with rate limiter
- *  Then Wake up dispatch_thread
- */
 void ConsumeMessageService::start() {
   State expected = State::CREATED;
   if (state_.compare_exchange_strong(expected, State::STARTING, std::memory_order_relaxed)) {

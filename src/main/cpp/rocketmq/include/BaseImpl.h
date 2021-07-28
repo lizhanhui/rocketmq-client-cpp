@@ -3,6 +3,7 @@
 #include "InvocationContext.h"
 #include "rocketmq/MQMessageExt.h"
 #include "rocketmq/State.h"
+#include <chrono>
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -39,6 +40,9 @@ public:
   }
 
   void healthCheck() LOCKS_EXCLUDED(isolated_endpoints_mtx_) override;
+
+
+  void schedule(const std::string &task_name, const std::function<void(void)>& task, std::chrono::milliseconds delay);
 
 protected:
   ClientInstancePtr client_instance_;

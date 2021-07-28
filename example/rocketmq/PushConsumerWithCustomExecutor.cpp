@@ -88,7 +88,7 @@ private:
 
 } // namespace rocketmq
 
-class SampleMQMessageListener : public MessageListenerConcurrently {
+class SampleMQMessageListener : public StandardMessageListener {
 public:
   ConsumeStatus consumeMessage(const std::vector<MQMessageExt>& msgs) override {
     std::lock_guard<std::mutex> lk(console_mtx_);
@@ -110,7 +110,7 @@ int main(int argc, char* argv[]) {
   logger.init();
 
   DefaultMQPushConsumer push_consumer("TestGroup");
-  MQMessageListener* listener = new SampleMQMessageListener;
+  MessageListener* listener = new SampleMQMessageListener;
 
   auto pool = new ExecutorImpl;
   pool->start();

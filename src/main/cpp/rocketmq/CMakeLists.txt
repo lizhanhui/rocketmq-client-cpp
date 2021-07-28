@@ -5,8 +5,8 @@ target_sources(rocketmq_obj
             AwaitPullCallback.cpp
             BaseImpl.cpp
             ConsumeMessageService.cpp
-            ConsumeMessageConcurrentlyService.cpp
-            ConsumeMessageOrderlyService.cpp
+        ConsumeStandardMessageService.cpp
+        ConsumeFifoMessageService.cpp
             CredentialsProvider.cpp
             DefaultMQProducer.cpp
             DefaultMQProducerImpl.cpp

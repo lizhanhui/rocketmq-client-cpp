@@ -22,8 +22,8 @@
 ROCKETMQ_NAMESPACE_BEGIN
 
 class ConsumeMessageService;
-class ConsumeMessageOrderlyService;
-class ConsumeMessageConcurrentlyService;
+class ConsumeFifoMessageService;
+class ConsumeStandardMessageService;
 
 class DefaultMQPushConsumerImpl : public BaseImpl, public std::enable_shared_from_this<DefaultMQPushConsumerImpl> {
 public:
@@ -48,7 +48,7 @@ public:
 
   void setConsumeFromWhere(ConsumeFromWhere consume_from_where);
 
-  void registerMessageListener(MQMessageListener* message_listener);
+  void registerMessageListener(MessageListener* message_listener);
 
   void scanAssignments() LOCKS_EXCLUDED(process_queue_table_mtx_);
 
@@ -59,9 +59,10 @@ public:
                                   QueryAssignmentRequest& request);
 
   /**
-   * Query assignment of the specified topic from load balancer directly if message consuming mode is clustering. In
-   * case current client is operating in the broadcasting mode, assignments are constructed locally from topic route
-   * entries.
+   * Query assignment of the specified topic from load balancer directly if
+   * message consuming mode is clustering. In case current client is operating
+   * in the broadcasting mode, assignments are constructed locally from topic
+   * route entries.
    *
    * @param topic Topic to query
    * @return shared pointer to topic assignment info
@@ -96,7 +97,8 @@ public:
   void ack(const MQMessageExt& msg, const std::function<void(bool)>& callback);
 
   /**
-   * Negative acknowledge the given message; Refer to https://en.wikipedia.org/wiki/Acknowledgement_(data_networks) for
+   * Negative acknowledge the given message; Refer to
+   * https://en.wikipedia.org/wiki/Acknowledgement_(data_networks) for
    * background info.
    *
    * Current implementation is to change invisible time of the given message.
@@ -105,12 +107,14 @@ public:
    */
   void nack(const MQMessageExt& message, const std::function<void(bool)>& callback);
 
+  void redirectToDLQ(const MQMessageExt& message, const std::function<void(bool)>& cb);
+
   void wrapAckMessageRequest(const MQMessageExt& msg, AckMessageRequest& request);
 
   bool isStopped() const;
 
   // only for test
-  int getProcessQueueTableSize() LOCKS_EXCLUDED(process_queue_table_mtx_);
+  std::size_t getProcessQueueTableSize() LOCKS_EXCLUDED(process_queue_table_mtx_);
 
   void setCustomExecutor(const Executor& executor) { custom_executor_ = executor; }
 
@@ -145,7 +149,7 @@ private:
    */
   int consume_thread_pool_size_;
 
-  MQMessageListener* message_listener_ptr_;
+  MessageListener* message_listener_ptr_;
 
   std::shared_ptr<ConsumeMessageService> consume_message_service_;
 
@@ -181,8 +185,8 @@ private:
   void iterateProcessQueue(const std::function<void(ProcessQueueSharedPtr)>& callback);
 
   friend class ConsumeMessageService;
-  friend class ConsumeMessageOrderlyService;
-  friend class ConsumeMessageConcurrentlyService;
+  friend class ConsumeFifoMessageService;
+  friend class ConsumeStandardMessageService;
 
   static const int32_t MAX_CACHED_MESSAGE_COUNT;
   static const int32_t DEFAULT_CACHED_MESSAGE_COUNT;
@@ -207,7 +211,8 @@ public:
 
 private:
   /**
-   * Hold a weak_ptr to ProcessQueue. Once ProcessQueue was released, stop the pop-cycle immediately.
+   * Hold a weak_ptr to ProcessQueue. Once ProcessQueue was released, stop the
+   * pop-cycle immediately.
    */
   ProcessQueueWeakPtr process_queue_;
 

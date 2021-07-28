@@ -7,7 +7,7 @@
 
 using namespace rocketmq;
 
-class CounterMessageListener : public MessageListenerConcurrently {
+class CounterMessageListener : public StandardMessageListener {
 public:
   explicit CounterMessageListener(std::atomic_long& counter) : counter_(counter) {}
 
@@ -29,7 +29,7 @@ int main(int argc, char* argv[]) {
   std::atomic_long counter(0);
 
   DefaultMQPushConsumer push_consumer("TestGroup");
-  MQMessageListener* listener = new CounterMessageListener(counter);
+  MessageListener* listener = new CounterMessageListener(counter);
 
   push_consumer.setGroupName("TestGroup");
   push_consumer.setInstanceName("CID_sample_member_0");

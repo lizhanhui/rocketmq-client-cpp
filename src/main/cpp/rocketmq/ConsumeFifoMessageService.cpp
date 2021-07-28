@@ -1,18 +1,18 @@
 #include "ConsumeMessageService.h"
 #include "DefaultMQPushConsumerImpl.h"
 #include "MessageAccessor.h"
+#include "include/ProcessQueue.h"
+#include <chrono>
 #include <limits>
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-ConsumeMessageOrderlyService ::ConsumeMessageOrderlyService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer_impl_ptr,
-                                                            int thread_count, MQMessageListener* message_listener_ptr)
+ConsumeFifoMessageService ::ConsumeFifoMessageService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer_impl_ptr,
+                                                            int thread_count, MessageListener* message_listener_ptr)
     : ConsumeMessageService(std::move(consumer_impl_ptr), thread_count, message_listener_ptr) {
-  // Suppress field not used warning for now
-  (void)message_listener_ptr_;
 }
 
-void ConsumeMessageOrderlyService::start() {
+void ConsumeFifoMessageService::start() {
   ConsumeMessageService::start();
   State expected = State::STARTING;
   if (state_.compare_exchange_strong(expected, State::STARTED)) {
@@ -20,7 +20,7 @@ void ConsumeMessageOrderlyService::start() {
   }
 }
 
-void ConsumeMessageOrderlyService::shutdown() {
+void ConsumeFifoMessageService::shutdown() {
   // Wait till consume-message-orderly-service has fully started; otherwise, we may potentially miss closing resources
   // in concurrent scenario.
   while (State::STARTING == state_.load(std::memory_order_relaxed)) {
@@ -34,14 +34,14 @@ void ConsumeMessageOrderlyService::shutdown() {
   }
 }
 
-void ConsumeMessageOrderlyService::submitConsumeTask0(const std::shared_ptr<DefaultMQPushConsumerImpl>& consumer,
+void ConsumeFifoMessageService::submitConsumeTask0(const std::shared_ptr<DefaultMQPushConsumerImpl>& consumer,
                                                       ProcessQueueWeakPtr process_queue,
                                                       std::vector<MQMessageExt> messages) {
   // In case custom executor is used.
   const Executor& custom_executor = consumer->customExecutor();
   if (custom_executor) {
     std::function<void(void)> consume_task =
-        std::bind(&ConsumeMessageOrderlyService::consumeTask, this, process_queue, messages);
+        std::bind(&ConsumeFifoMessageService::consumeTask, this, process_queue, messages);
     custom_executor(consume_task);
     SPDLOG_DEBUG("Submit FIFO consume task to custom executor");
     return;
@@ -49,12 +49,12 @@ void ConsumeMessageOrderlyService::submitConsumeTask0(const std::shared_ptr<Defa
 
   // submit batch message
   std::function<void(void)> consume_task =
-      std::bind(&ConsumeMessageOrderlyService::consumeTask, this, process_queue, messages);
+      std::bind(&ConsumeFifoMessageService::consumeTask, this, process_queue, messages);
   SPDLOG_DEBUG("Submit FIFO consume task to thread pool");
   pool_->Add(consume_task);
 }
 
-void ConsumeMessageOrderlyService::submitConsumeTask(const ProcessQueueWeakPtr& process_queue) {
+void ConsumeFifoMessageService::submitConsumeTask(const ProcessQueueWeakPtr& process_queue) {
   ProcessQueueSharedPtr process_queue_ptr = process_queue.lock();
   if (!process_queue_ptr) {
     SPDLOG_INFO("Process queue has destructed");
@@ -76,18 +76,18 @@ void ConsumeMessageOrderlyService::submitConsumeTask(const ProcessQueueWeakPtr& 
   }
 }
 
-MessageListenerType ConsumeMessageOrderlyService::getConsumeMsgServiceListenerType() {
-  return MessageListenerType::messageListenerOrderly;
+MessageListenerType ConsumeFifoMessageService::messageListenerType() {
+  return MessageListenerType::FIFO;
 }
 
-void ConsumeMessageOrderlyService::consumeTask(const ProcessQueueWeakPtr& process_queue,
+void ConsumeFifoMessageService::consumeTask(const ProcessQueueWeakPtr& process_queue,
                                                std::vector<MQMessageExt>& msgs) {
   ProcessQueueSharedPtr process_queue_ptr = process_queue.lock();
   if (!process_queue_ptr) {
     return;
   }
   std::string topic = msgs.begin()->getTopic();
-  ConsumeStatus status;
+  ConsumeMessageResult result;
   std::shared_ptr<DefaultMQPushConsumerImpl> consumer = consumer_weak_ptr_.lock();
   // consumer might have been destructed.
   if (!consumer) {
@@ -106,10 +106,12 @@ void ConsumeMessageOrderlyService::consumeTask(const ProcessQueueWeakPtr& proces
   auto steady_start = std::chrono::steady_clock::now();
 
   try {
-    assert(nullptr != message_listener_ptr_);
-    status = message_listener_ptr_->consumeMessage(msgs);
+    assert(message_listener_);
+    auto message_listener = dynamic_cast<FifoMessageListener*>(message_listener_);
+    assert(message_listener);
+    result = message_listener->consumeMessage(msgs);
   } catch (...) {
-    status = RECONSUME_LATER;
+    result = ConsumeMessageResult::FAILURE;
     SPDLOG_ERROR("Business FIFO callback raised an exception when consumeMessage");
   }
 
@@ -119,7 +121,7 @@ void ConsumeMessageOrderlyService::consumeTask(const ProcessQueueWeakPtr& proces
   SPDLOG_DEBUG("Business callback spent {}ms processing {} messages.", MixAll::millisecondsOf(duration), msgs.size());
 
   if (MessageModel::CLUSTERING == consumer->messageModel()) {
-    if (status == CONSUME_SUCCESS) {
+    if (result == ConsumeMessageResult::SUCCESS) {
       for (const auto& msg : msgs) {
         const std::string& message_id = msg.getMsgId();
         // Release message number and memory quota
@@ -147,12 +149,47 @@ void ConsumeMessageOrderlyService::consumeTask(const ProcessQueueWeakPtr& proces
       }
 
       if (min_reconsume_times < consumer->max_delivery_attempts_) {
-        // Submit consume task to thread pool.
-        submitConsumeTask0(consumer, process_queue, std::move(msgs));
-        SPDLOG_INFO("Business callback failed to process FIFO messages. Re-submit consume task back to thread pool");
+        std::weak_ptr<DefaultMQPushConsumerImpl> consumer_weak_ptr = consumer_weak_ptr_;
+        std::weak_ptr<ConsumeFifoMessageService> service_weak_ptr = shared_from_this();
+        auto submit_task = [service_weak_ptr, consumer_weak_ptr, process_queue, msgs]() {
+          auto consumer_ptr = consumer_weak_ptr.lock();
+          if (!consumer_ptr) {
+            return;
+          }
+
+          auto process_queue_ptr = process_queue.lock();
+          if (!process_queue_ptr) {
+            return;
+          }
+
+          auto service = service_weak_ptr.lock();
+          if (!service) {
+            return;
+          }
+
+          service->submitConsumeTask0(consumer_ptr, process_queue_ptr, msgs);
+          SPDLOG_INFO("Business callback failed to process FIFO messages. Re-submit consume task back to thread pool");
+        };
+        consumer->schedule("Submit-Consume-FIFO-Message-Task", submit_task, std::chrono::seconds(1));
       } else {
-        process_queue_ptr->unbindFifoConsumeTask();
-        // TODO: Move them to DLQ
+        // TODO: What if partial failure?
+        // Keep retry till success is achieved
+        auto callback = [process_queue](bool ok) {
+          auto process_queue_shared_ptr = process_queue.lock();
+          if (!process_queue_shared_ptr) {
+            return;
+          }
+
+          if (!ok) {
+            SPDLOG_WARN("Failed to redirect message to Dead-Letter-Queue");
+          } else {
+            process_queue_shared_ptr->unbindFifoConsumeTask();
+          }
+        };
+
+        for (const auto& msg : msgs) {
+          consumer->redirectToDLQ(msg, callback);
+        }
       }
     }
   } else if (MessageModel::BROADCASTING == consumer->messageModel()) {

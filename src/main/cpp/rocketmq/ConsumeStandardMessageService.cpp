@@ -9,12 +9,11 @@
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-ConsumeMessageConcurrentlyService::ConsumeMessageConcurrentlyService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer,
-                                                                     int thread_count,
-                                                                     MQMessageListener* message_listener_ptr)
+ConsumeStandardMessageService::ConsumeStandardMessageService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer,
+                                                             int thread_count, MessageListener* message_listener_ptr)
     : ConsumeMessageService(std::move(consumer), thread_count, message_listener_ptr) {}
 
-void ConsumeMessageConcurrentlyService::start() {
+void ConsumeStandardMessageService::start() {
   ConsumeMessageService::start();
   State expected = State::STARTING;
   if (state_.compare_exchange_strong(expected, State::STARTED)) {
@@ -22,7 +21,7 @@ void ConsumeMessageConcurrentlyService::start() {
   }
 }
 
-void ConsumeMessageConcurrentlyService::shutdown() {
+void ConsumeStandardMessageService::shutdown() {
   while (State::STARTING == state_.load(std::memory_order_relaxed)) {
     absl::SleepFor(absl::Milliseconds(10));
   }
@@ -34,7 +33,7 @@ void ConsumeMessageConcurrentlyService::shutdown() {
   }
 }
 
-void ConsumeMessageConcurrentlyService::submitConsumeTask(const ProcessQueueWeakPtr& process_queue) {
+void ConsumeStandardMessageService::submitConsumeTask(const ProcessQueueWeakPtr& process_queue) {
   ProcessQueueSharedPtr process_queue_ptr = process_queue.lock();
   if (!process_queue_ptr) {
     SPDLOG_WARN("ProcessQueue was destructed. It is likely that client should have shutdown.");
@@ -61,7 +60,7 @@ void ConsumeMessageConcurrentlyService::submitConsumeTask(const ProcessQueueWeak
     const Executor& custom_executor = consumer_impl_ptr->customExecutor();
     if (custom_executor) {
       std::function<void(void)> consume_task =
-          std::bind(&ConsumeMessageConcurrentlyService::consumeTask, this, process_queue, messages);
+          std::bind(&ConsumeStandardMessageService::consumeTask, this, process_queue, messages);
       custom_executor(consume_task);
       SPDLOG_DEBUG("Submit consumer task to custom executor with message-batch-size={}", messages.size());
       continue;
@@ -69,24 +68,22 @@ void ConsumeMessageConcurrentlyService::submitConsumeTask(const ProcessQueueWeak
 
     // submit batch message
     std::function<void(void)> consume_task =
-        std::bind(&ConsumeMessageConcurrentlyService::consumeTask, this, process_queue_ptr, messages);
+        std::bind(&ConsumeStandardMessageService::consumeTask, this, process_queue_ptr, messages);
     SPDLOG_DEBUG("Submit consumer task to thread pool with message-batch-size={}", messages.size());
     pool_->Add(consume_task);
   }
 }
 
-MessageListenerType ConsumeMessageConcurrentlyService::getConsumeMsgServiceListenerType() {
-  return messageListenerConcurrently;
-}
+MessageListenerType ConsumeStandardMessageService::messageListenerType() { return MessageListenerType::STANDARD; }
 
-void ConsumeMessageConcurrentlyService::consumeTask(const ProcessQueueWeakPtr& process_queue,
-                                                    const std::vector<MQMessageExt>& msgs) {
+void ConsumeStandardMessageService::consumeTask(const ProcessQueueWeakPtr& process_queue,
+                                                const std::vector<MQMessageExt>& msgs) {
   ProcessQueueSharedPtr process_queue_ptr = process_queue.lock();
   if (!process_queue_ptr || msgs.empty()) {
     return;
   }
   std::string topic = msgs.begin()->getTopic();
-  ConsumeStatus status;
+  ConsumeMessageResult status;
   std::shared_ptr<DefaultMQPushConsumerImpl> consumer = consumer_weak_ptr_.lock();
   // consumer might have been destructed.
   if (!consumer) {
@@ -113,10 +110,12 @@ void ConsumeMessageConcurrentlyService::consumeTask(const ProcessQueueWeakPtr& p
   auto steady_start = std::chrono::steady_clock::now();
 
   try {
-    assert(nullptr != message_listener_ptr_);
-    status = message_listener_ptr_->consumeMessage(msgs);
+    assert(nullptr != message_listener_);
+    auto message_listener = dynamic_cast<StandardMessageListener*>(message_listener_);
+    assert(message_listener);
+    status = message_listener->consumeMessage(msgs);
   } catch (...) {
-    status = RECONSUME_LATER;
+    status = ConsumeMessageResult::FAILURE;
     SPDLOG_ERROR("Business callback raised an exception when consumeMessage");
   }
 
@@ -160,7 +159,7 @@ void ConsumeMessageConcurrentlyService::consumeTask(const ProcessQueueWeakPtr& p
         span->End(end_options);
       }
 #endif
-      if (status == CONSUME_SUCCESS) {
+      if (status == ConsumeMessageResult::SUCCESS) {
         auto callback = [process_queue_ptr, message_id](bool ok) {
           if (ok) {
             SPDLOG_DEBUG("Acknowledge message[MessageQueue={}, MsgId={}] OK", process_queue_ptr->simpleName(),

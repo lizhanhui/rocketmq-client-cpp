@@ -32,7 +32,7 @@ void DefaultMQPushConsumer::subscribe(const std::string& topic, const std::strin
 
 void DefaultMQPushConsumer::setConsumeFromWhere(ConsumeFromWhere policy) { impl_->setConsumeFromWhere(policy); }
 
-void DefaultMQPushConsumer::registerMessageListener(MQMessageListener* listener) {
+void DefaultMQPushConsumer::registerMessageListener(MessageListener* listener) {
   impl_->registerMessageListener(listener);
 }
 

@@ -8,7 +8,7 @@
 
 using namespace rocketmq;
 
-class SampleMQMessageListener : public MessageListenerConcurrently {
+class SampleMQMessageListener : public StandardMessageListener {
 public:
   ConsumeStatus consumeMessage(const std::vector<MQMessageExt>& msgs) override {
     for (const MQMessageExt& msg : msgs) {
@@ -33,7 +33,7 @@ int main(int argc, char* argv[]) {
   push_consumer.setArn(arn);
   push_consumer.setCredentialsProvider(std::make_shared<ConfigFileCredentialsProvider>());
   push_consumer.setNamesrvAddr("11.165.223.199:9876");
-  MQMessageListener* listener = new SampleMQMessageListener;
+  MessageListener* listener = new SampleMQMessageListener;
   push_consumer.setGroupName(cid);
   push_consumer.setInstanceName("instance_0");
   push_consumer.subscribe(topic, "*");
