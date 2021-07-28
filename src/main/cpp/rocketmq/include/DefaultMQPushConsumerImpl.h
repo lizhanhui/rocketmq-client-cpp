@@ -213,7 +213,7 @@ private:
       throttle_table_ GUARDED_BY(throttle_table_mtx_);
   absl::Mutex throttle_table_mtx_;
 
-  uint32_t max_delivery_attempts_{MixAll::DEFAULT_MAX_DELIVERY_ATTEMPTS};
+  int32_t max_delivery_attempts_{MixAll::DEFAULT_MAX_DELIVERY_ATTEMPTS};
 
   MessageModel message_model_{MessageModel::CLUSTERING};
 

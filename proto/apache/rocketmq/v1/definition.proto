@@ -243,11 +243,11 @@ message SystemAttribute {
     google.protobuf.Duration invisible_period = 16;
 
     // Business code may failed to process messages for the moment. Hence, clients may request servers to deliver them
-    // again using certain back-off strategy.
-    int32 delivery_count = 17;
+    // again using certain back-off strategy, the attempt is 1 not 0 if message is delivered first time.
+    int32 delivery_attempt = 17;
 
-    // Message's max delivery count, if message's delivery count exceed this value, it will be sent to dlq topic.
-    int32 max_delivery_count = 18;
+    // Message's max delivery attempts count, if message's delivery count exceed this value, it will be sent to dlq topic.
+    int32 max_delivery_attempts = 18;
 
     // Message producer load-balance group if applicable.
     Resource producer_group = 19;
@@ -281,6 +281,7 @@ enum ConsumeMessageType {
 
 message Assignment {
     Partition Partition = 1;
+    // to delete.
     ConsumeMessageType mode = 2;
 }
 

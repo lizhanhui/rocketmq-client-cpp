@@ -21,7 +21,7 @@ public:
   static const uint64_t DEFAULT_CACHED_MESSAGE_MEMORY;
   static const uint32_t DEFAULT_CONSUME_THREAD_POOL_SIZE;
   static const uint32_t DEFAULT_CONSUME_MESSAGE_BATCH_SIZE;
-  static const uint32_t DEFAULT_MAX_DELIVERY_ATTEMPTS;
+  static const int32_t DEFAULT_MAX_DELIVERY_ATTEMPTS;
 
   static const RE2 TOPIC_REGEX;
 

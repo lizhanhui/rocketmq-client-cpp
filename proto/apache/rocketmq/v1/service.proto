@@ -100,8 +100,9 @@ message NackMessageRequest {
   string client_id = 3;
   string receipt_handle = 4;
   string message_id = 5;
-  int32 reconsume_times = 6;
-  int32 max_reconsume_times = 7;
+  int32 delivery_attempt = 6;
+  int32 max_delivery_attempts = 7;
+  // to delete.
   ConsumeModel consume_model = 8;
 }
 
@@ -116,7 +117,7 @@ message SendMessageToDeadLetterQueueRequest {
   string receipt_handle = 4;
   string message_id = 5;
   int32 reconsume_times = 6;
-  int32 max_reconsume_times = 7;
+  int32 max_delivery_attempts = 7;
 }
 
 message SendMessageToDeadLetterQueueResponse {

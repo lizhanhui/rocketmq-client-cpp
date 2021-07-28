@@ -145,8 +145,6 @@ private:
 
   absl::Time create_timestamp_{absl::Now()};
 
-  ConsumeInitialMode initial_mode_{ConsumeInitialMode::MAX};
-
   std::string simple_name_;
 
   std::weak_ptr<DefaultMQPushConsumerImpl> consumer_;

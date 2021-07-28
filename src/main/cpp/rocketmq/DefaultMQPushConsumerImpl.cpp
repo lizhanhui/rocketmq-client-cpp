@@ -405,8 +405,8 @@ void DefaultMQPushConsumerImpl::nack(const MQMessageExt& msg, const std::functio
   request.set_client_id(clientId());
   request.set_receipt_handle(msg.receiptHandle());
   request.set_message_id(msg.getMsgId());
-  request.set_reconsume_times(msg.getReconsumeTimes() + 1);
-  request.set_max_reconsume_times(max_delivery_attempts_);
+  request.set_delivery_attempt(msg.getReconsumeTimes() + 1);
+  request.set_max_delivery_attempts(max_delivery_attempts_);
 
   client_instance_->nack(target_host, metadata, request, absl::ToChronoMilliseconds(io_timeout_), callback);
   SPDLOG_DEBUG("Send message nack to broker server[host={}]", target_host);
@@ -429,7 +429,7 @@ void DefaultMQPushConsumerImpl::redirectToDLQ(const MQMessageExt& message, const
   request.set_message_id(message.getMsgId());
 
   request.set_reconsume_times(message.getReconsumeTimes());
-  request.set_max_reconsume_times(max_delivery_attempts_);
+  request.set_max_delivery_attempts(max_delivery_attempts_);
 
   client_instance_->redirectToDeadLetterQueue(target_host, metadata, request, absl::ToChronoMilliseconds(io_timeout_),
                                               cb);
