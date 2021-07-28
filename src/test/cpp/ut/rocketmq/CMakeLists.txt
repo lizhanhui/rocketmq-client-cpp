@@ -1,11 +1,3 @@
-add_library(semaphore_library
-        Semaphore.cpp)
-target_include_directories(semaphore_library
-        INTERFACE
-            ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(semaphore_library
-        absl::synchronization)
-
 add_library(client_test_interface INTERFACE)
 target_include_directories(client_test_interface
         INTERFACE
@@ -15,19 +7,11 @@ target_link_libraries(client_test_interface
             rpc_client_mock
             gtest_main)
 
-add_executable(semaphore_test SemaphoreTest.cpp)
-target_link_libraries(semaphore_test
-        gtest_main
-        semaphore_library
-        spdlog::spdlog)
-add_test(ut_semaphore_test semaphore_test)
-
 add_executable(default_mq_producer_test DefaultMQProducerTest.cpp)
 target_link_libraries(default_mq_producer_test
         PRIVATE
             client_test_interface
-            rocketmq_library
-            semaphore_library)
+            rocketmq_library)
 add_test(ut_default_mq_producer_test default_mq_producer_test)
 
 add_executable(default_mq_push_consumer_test DefaultMQPushConsumerTest.cpp)

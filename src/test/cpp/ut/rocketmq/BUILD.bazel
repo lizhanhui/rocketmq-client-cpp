@@ -33,33 +33,6 @@ cc_test(
     ],
 )
 
-cc_library(
-    name = "semaphore_library",
-    hdrs = [
-        "include/Semaphore.h",
-    ],
-    srcs = [
-        "Semaphore.cpp",
-    ],
-    strip_include_prefix = "//src/test/cpp/ut/rocketmq/include",
-    deps = [
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/synchronization",
-    ],
-)
-
-cc_test(
-    name = "semaphore_test",
-    srcs = [
-        "SemaphoreTest.cpp",
-    ],
-    deps = [
-        ":semaphore_library",
-        "@com_github_gabime_spdlog//:spdlog",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
 cc_test(
     name = "process_queue_test",
     srcs = [

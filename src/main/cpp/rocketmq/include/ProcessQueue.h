@@ -10,6 +10,7 @@
 #include "FilterExpression.h"
 #include "MixAll.h"
 #include "TopicAssignmentInfo.h"
+#include "ReceiveMessageCallback.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "apache/rocketmq/v1/service.pb.h"
