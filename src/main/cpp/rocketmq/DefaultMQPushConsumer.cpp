@@ -59,10 +59,6 @@ bool DefaultMQPushConsumer::isTracingEnabled() { return impl_->isTracingEnabled(
 
 void DefaultMQPushConsumer::setAsyncPull(bool) {}
 
-void DefaultMQPushConsumer::setMaxCacheMsgSizePerQueue(int max_cache_size) {
-  impl_->maxCachedMessageNumberPerQueue(max_cache_size);
-}
-
 void DefaultMQPushConsumer::setConsumeMessageBatchMaxSize(int batch_size) { impl_->consumeBatchSize(batch_size); }
 
 void DefaultMQPushConsumer::setCustomExecutor(const Executor& executor) { impl_->setCustomExecutor(executor); }

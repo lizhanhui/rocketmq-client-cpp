@@ -39,7 +39,7 @@ void ConsumeStandardMessageService::submitConsumeTask(const ProcessQueueWeakPtr&
     SPDLOG_WARN("ProcessQueue was destructed. It is likely that client should have shutdown.");
     return;
   }
-  std::shared_ptr<DefaultMQPushConsumerImpl> consumer_impl_ptr = process_queue_ptr->getCallbackOwner().lock();
+  std::shared_ptr<DefaultMQPushConsumerImpl> consumer_impl_ptr = process_queue_ptr->getConsumer().lock();
 
   if (!consumer_impl_ptr) {
     return;

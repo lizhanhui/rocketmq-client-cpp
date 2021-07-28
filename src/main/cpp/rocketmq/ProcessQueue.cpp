@@ -14,13 +14,11 @@ using namespace std::chrono;
 ROCKETMQ_NAMESPACE_BEGIN
 
 ProcessQueue::ProcessQueue(MQMessageQueue message_queue, FilterExpression filter_expression,
-                           ConsumeMessageType consume_type, int max_cache_size,
-                           std::weak_ptr<DefaultMQPushConsumerImpl> call_back_owner,
+                           ConsumeMessageType consume_type, std::weak_ptr<DefaultMQPushConsumerImpl> call_back_owner,
                            std::shared_ptr<ClientInstance> client_instance)
     : message_queue_(std::move(message_queue)), filter_expression_(std::move(filter_expression)),
-      consume_type_(consume_type), fetch_batch_size_(MixAll::DEFAULT_RECEIVE_MESSAGE_BATCH_SIZE),
-      invisible_time_(MixAll::millisecondsOf(MixAll::DEFAULT_INVISIBLE_TIME_)), max_cache_quantity_(max_cache_size),
-      max_cache_memory_(), simple_name_(message_queue_.simpleName()), call_back_owner_(std::move(call_back_owner)),
+      consume_type_(consume_type), invisible_time_(MixAll::millisecondsOf(MixAll::DEFAULT_INVISIBLE_TIME_)),
+      simple_name_(message_queue_.simpleName()), consumer_(std::move(call_back_owner)),
       client_instance_(std::move(client_instance)), cached_message_quantity_(0), cached_message_memory_(0) {
   SPDLOG_DEBUG("Created ProcessQueue={}", simpleName());
 }
@@ -29,7 +27,9 @@ ProcessQueue::~ProcessQueue() {
   SPDLOG_INFO("ProcessQueue={} should have been re-balanced away, thus, is destructed", simpleName());
 }
 
-void ProcessQueue::callback(std::shared_ptr<ReceiveMessageCallback> callback) { callback_ = std::move(callback); }
+void ProcessQueue::callback(std::shared_ptr<ReceiveMessageCallback> callback) {
+  receive_callback_ = std::move(callback);
+}
 
 bool ProcessQueue::expired() const {
   auto duration = std::chrono::steady_clock::now() - last_poll_timestamp_;
@@ -44,20 +44,27 @@ bool ProcessQueue::expired() const {
 }
 
 bool ProcessQueue::shouldThrottle() const {
-  std::size_t count = cached_message_quantity_.load(std::memory_order_relaxed);
-  bool need_throttle = count >= max_cache_quantity_;
+  auto consumer = consumer_.lock();
+  if (!consumer) {
+    return false;
+  }
+
+  std::size_t quantity = cached_message_quantity_.load(std::memory_order_relaxed);
+  uint32_t quantity_threshold = consumer->maxCachedMessageQuantity();
+  uint64_t memory_threshold = consumer->maxCachedMessageMemory();
+  bool need_throttle = quantity >= quantity_threshold;
   if (need_throttle) {
-    SPDLOG_INFO("{}: Number of locally cached messages is {}, which exceeds threshold={}", simple_name_, count,
-                max_cache_quantity_);
+    SPDLOG_INFO("{}: Number of locally cached messages is {}, which exceeds threshold={}", simple_name_, quantity,
+                quantity_threshold);
     return true;
   }
 
-  if (max_cache_memory_) {
+  if (memory_threshold) {
     uint64_t bytes = cached_message_memory_.load(std::memory_order_relaxed);
-    need_throttle = bytes >= max_cache_memory_;
+    need_throttle = bytes >= memory_threshold;
     if (need_throttle) {
       SPDLOG_INFO("{}: Locally cached messages take {} bytes, which exceeds threshold={}", simple_name_, bytes,
-                  max_cache_memory_);
+                  memory_threshold);
       return true;
     }
   }
@@ -79,7 +86,7 @@ void ProcessQueue::popMessage() {
   rmq::ReceiveMessageRequest request;
 
   absl::flat_hash_map<std::string, std::string> metadata;
-  auto consumer_client = call_back_owner_.lock();
+  auto consumer_client = consumer_.lock();
   if (!consumer_client) {
     return;
   }
@@ -89,7 +96,7 @@ void ProcessQueue::popMessage() {
   last_poll_timestamp_ = std::chrono::steady_clock::now();
   SPDLOG_DEBUG("Try to pop message from {}", message_queue_.simpleName());
   client_instance_->receiveMessage(message_queue_.serviceAddress(), metadata, request,
-                                   absl::ToChronoMilliseconds(consumer_client->getIoTimeout()), callback_);
+                                   absl::ToChronoMilliseconds(consumer_client->getIoTimeout()), receive_callback_);
 }
 
 void ProcessQueue::pullMessage() {
@@ -98,7 +105,7 @@ void ProcessQueue::pullMessage() {
   wrapPullMessageRequest(metadata, request);
   last_poll_timestamp_ = std::chrono::steady_clock::now();
   SPDLOG_DEBUG("Try to pull message from {}", message_queue_.simpleName());
-  client_instance_->pullMessage(message_queue_.serviceAddress(), metadata, request, callback_);
+  client_instance_->pullMessage(message_queue_.serviceAddress(), metadata, request, receive_callback_);
 }
 
 bool ProcessQueue::hasPendingMessages() const {
@@ -107,7 +114,7 @@ bool ProcessQueue::hasPendingMessages() const {
 }
 
 void ProcessQueue::cacheMessages(const std::vector<MQMessageExt>& messages) {
-  auto consumer = call_back_owner_.lock();
+  auto consumer = consumer_.lock();
   if (!consumer) {
     return;
   }
@@ -173,7 +180,7 @@ bool ProcessQueue::committedOffset(int64_t& offset) {
 }
 
 void ProcessQueue::release(uint64_t body_size, int64_t offset) {
-  auto consumer = call_back_owner_.lock();
+  auto consumer = consumer_.lock();
   if (!consumer) {
     return;
   }
@@ -195,7 +202,7 @@ void ProcessQueue::release(uint64_t body_size, int64_t offset) {
 
 void ProcessQueue::wrapPopMessageRequest(absl::flat_hash_map<std::string, std::string>& metadata,
                                          rmq::ReceiveMessageRequest& request) {
-  std::shared_ptr<DefaultMQPushConsumerImpl> consumer = call_back_owner_.lock();
+  std::shared_ptr<DefaultMQPushConsumerImpl> consumer = consumer_.lock();
   assert(consumer);
   request.set_client_id(consumer->clientId());
   request.mutable_group()->set_name(consumer->getGroupName());
@@ -223,7 +230,7 @@ void ProcessQueue::wrapPopMessageRequest(absl::flat_hash_map<std::string, std::s
   }
 
   // Batch size
-  request.set_batch_size(fetch_batch_size_);
+  request.set_batch_size(consumer->receiveBatchSize());
 
   // Consume policy
   request.set_consume_policy(rmq::ConsumePolicy::RESUME);
@@ -238,7 +245,7 @@ void ProcessQueue::wrapPopMessageRequest(absl::flat_hash_map<std::string, std::s
 
 void ProcessQueue::wrapPullMessageRequest(absl::flat_hash_map<std::string, std::string>& metadata,
                                           rmq::PullMessageRequest& request) {
-  std::shared_ptr<DefaultMQPushConsumerImpl> consumer = call_back_owner_.lock();
+  std::shared_ptr<DefaultMQPushConsumerImpl> consumer = consumer_.lock();
   assert(consumer);
   request.set_client_id(consumer->clientId());
   request.mutable_group()->set_name(consumer->getGroupName());
@@ -268,7 +275,7 @@ void ProcessQueue::wrapPullMessageRequest(absl::flat_hash_map<std::string, std::
   }
 }
 
-std::weak_ptr<DefaultMQPushConsumerImpl> ProcessQueue::getCallbackOwner() { return call_back_owner_; }
+std::weak_ptr<DefaultMQPushConsumerImpl> ProcessQueue::getConsumer() { return consumer_; }
 
 std::shared_ptr<ClientInstance> ProcessQueue::getClientInstance() { return client_instance_; }
 

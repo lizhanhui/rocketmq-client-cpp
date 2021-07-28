@@ -51,7 +51,7 @@ class DefaultMQPushConsumerImpl;
 class ProcessQueue {
 public:
   ProcessQueue(MQMessageQueue message_queue, FilterExpression filter_expression, ConsumeMessageType consume_type,
-               int max_cache_size, std::weak_ptr<DefaultMQPushConsumerImpl> call_back_owner,
+               std::weak_ptr<DefaultMQPushConsumerImpl> call_back_owner,
                std::shared_ptr<ClientInstance> client_instance);
 
   ~ProcessQueue();
@@ -66,7 +66,7 @@ public:
 
   const FilterExpression& getFilterExpression() const;
 
-  std::weak_ptr<DefaultMQPushConsumerImpl> getCallbackOwner();
+  std::weak_ptr<DefaultMQPushConsumerImpl> getConsumer();
 
   std::shared_ptr<ClientInstance> getClientInstance();
 
@@ -126,10 +126,6 @@ public:
     return has_fifo_task_bound_.compare_exchange_strong(expected, true, std::memory_order_relaxed);
   }
 
-  void fetchBatchSize(int32_t fetch_batch_size) {
-    fetch_batch_size_ = fetch_batch_size;
-  }
-
 private:
   MQMessageQueue message_queue_;
 
@@ -140,35 +136,22 @@ private:
 
   ConsumeMessageType consume_type_{ConsumeMessageType::POP};
 
-  int fetch_batch_size_;
-
   std::chrono::milliseconds invisible_time_;
 
   std::chrono::steady_clock::time_point last_poll_timestamp_{std::chrono::steady_clock::now()};
 
   std::chrono::steady_clock::time_point last_throttle_timestamp_{std::chrono::steady_clock::now()};
 
-  absl::Time born_timestamp_{absl::Now()};
+  absl::Time create_timestamp_{absl::Now()};
 
   ConsumeInitialMode initial_mode_{ConsumeInitialMode::MAX};
 
-  /**
-   * Maximum number of locally cached messages. Once exceeding this threshold, fetch-loop should be throttled.
-   */
-  uint32_t max_cache_quantity_;
-
-  /**
-   * Max cached memory in bytes
-   */
-  uint64_t max_cache_memory_;
-
   std::string simple_name_;
 
-  // callback
-  std::weak_ptr<DefaultMQPushConsumerImpl> call_back_owner_;
+  std::weak_ptr<DefaultMQPushConsumerImpl> consumer_;
   std::shared_ptr<ClientInstance> client_instance_;
 
-  std::shared_ptr<ReceiveMessageCallback> callback_;
+  std::shared_ptr<ReceiveMessageCallback> receive_callback_;
 
   /**
    * Messages that are pending to be submitted to thread pool.
@@ -189,7 +172,7 @@ private:
    */
   std::atomic<uint64_t> cached_message_memory_;
 
-  int64_t next_offset_{-1};
+  int64_t next_offset_{0};
 
   /**
    * If this process queue is used in FIFO scenario, this field marks if there is an task in thread pool.

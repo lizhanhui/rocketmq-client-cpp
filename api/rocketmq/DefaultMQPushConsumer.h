@@ -57,12 +57,6 @@ public:
   void setAsyncPull(bool);
 
   /**
-   * By default maxCacheMsgSize is 1024. Valid range is: 1~65535. Should not change this value unless you know what
-   * you are doing.
-   */
-  void setMaxCacheMsgSizePerQueue(int max_cache_size);
-
-  /**
    * Maximum number of messages passed to each callback.
    * @param batch_size Batch size
    */

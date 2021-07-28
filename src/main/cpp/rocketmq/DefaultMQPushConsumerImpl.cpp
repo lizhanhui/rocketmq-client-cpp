@@ -11,15 +11,7 @@
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-const int32_t DefaultMQPushConsumerImpl::MAX_CACHED_MESSAGE_COUNT = 65535;
-const int32_t DefaultMQPushConsumerImpl::DEFAULT_CACHED_MESSAGE_COUNT = 1024;
-const int32_t DefaultMQPushConsumerImpl::DEFAULT_CONSUME_MESSAGE_BATCH_SIZE = 1;
-const int32_t DefaultMQPushConsumerImpl::DEFAULT_CONSUME_THREAD_POOL_SIZE = 20;
-
-DefaultMQPushConsumerImpl::DefaultMQPushConsumerImpl(std::string group_name)
-    : BaseImpl(std::move(group_name)), consume_thread_pool_size_(DEFAULT_CONSUME_THREAD_POOL_SIZE),
-      message_listener_(nullptr), consume_batch_size_(DEFAULT_CONSUME_MESSAGE_BATCH_SIZE),
-      max_cached_message_number_per_queue_(DEFAULT_CACHED_MESSAGE_COUNT) {}
+DefaultMQPushConsumerImpl::DefaultMQPushConsumerImpl(std::string group_name) : BaseImpl(std::move(group_name)) {}
 
 DefaultMQPushConsumerImpl::~DefaultMQPushConsumerImpl() { SPDLOG_DEBUG("DefaultMQPushConsumerImpl is destructed"); }
 
@@ -41,6 +33,7 @@ void DefaultMQPushConsumerImpl::start() {
       SPDLOG_INFO("start orderly consume service: {}", group_name_);
       consume_message_service_ =
           std::make_shared<ConsumeFifoMessageService>(shared_from_this(), consume_thread_pool_size_, message_listener_);
+      consume_batch_size_ = 1;
     } else {
       // For backward compatibility, by default, ConsumeMessageConcurrentlyService is assumed.
       SPDLOG_INFO("start concurrently consume service: {}", group_name_);
@@ -315,10 +308,8 @@ ProcessQueueSharedPtr DefaultMQPushConsumerImpl::getOrCreateProcessQueue(const M
     } else {
       SPDLOG_INFO("Create ProcessQueue for message queue[{}]", message_queue.simpleName());
       // create ProcessQueue
-      process_queue =
-          std::make_shared<ProcessQueue>(message_queue, filter_expression, consume_type,
-                                         max_cached_message_number_per_queue_, shared_from_this(), client_instance_);
-      process_queue->fetchBatchSize(receive_batch_size_);
+      process_queue = std::make_shared<ProcessQueue>(message_queue, filter_expression, consume_type, shared_from_this(),
+                                                     client_instance_);
       std::shared_ptr<AsyncReceiveMessageCallback> receive_callback =
           std::make_shared<AsyncReceiveMessageCallback>(process_queue);
       process_queue->callback(receive_callback);
@@ -454,7 +445,7 @@ void DefaultMQPushConsumerImpl::wrapAckMessageRequest(const MQMessageExt& msg, A
   request.set_receipt_handle(msg.receiptHandle());
 }
 
-int DefaultMQPushConsumerImpl::consumeThreadPoolSize() const { return consume_thread_pool_size_; }
+uint32_t DefaultMQPushConsumerImpl::consumeThreadPoolSize() const { return consume_thread_pool_size_; }
 
 void DefaultMQPushConsumerImpl::consumeThreadPoolSize(int thread_pool_size) {
   if (thread_pool_size >= 1) {
@@ -465,16 +456,14 @@ void DefaultMQPushConsumerImpl::consumeThreadPoolSize(int thread_pool_size) {
 uint32_t DefaultMQPushConsumerImpl::consumeBatchSize() const { return consume_batch_size_; }
 
 void DefaultMQPushConsumerImpl::consumeBatchSize(uint32_t consume_batch_size) {
+
+  // For FIFO messages, consume batch size should always be 1.
+  if (message_listener_ && message_listener_->listenerType() == MessageListenerType::FIFO) {
+    return;
+  }
+
   if (consume_batch_size >= 1) {
     consume_batch_size_ = consume_batch_size;
-  }
-}
-
-void DefaultMQPushConsumerImpl::maxCachedMessageNumberPerQueue(int max_cached_message_number_per_queue) {
-  if (max_cached_message_number_per_queue > 0 && max_cached_message_number_per_queue < MAX_CACHED_MESSAGE_COUNT) {
-    max_cached_message_number_per_queue_ = max_cached_message_number_per_queue;
-  } else {
-    max_cached_message_number_per_queue_ = DEFAULT_CACHED_MESSAGE_COUNT;
   }
 }
 

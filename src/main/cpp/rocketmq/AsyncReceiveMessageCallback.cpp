@@ -15,7 +15,7 @@ void AsyncReceiveMessageCallback::onSuccess(ReceiveMessageResult& result) {
     return;
   }
 
-  std::shared_ptr<DefaultMQPushConsumerImpl> impl = process_queue_shared_ptr->getCallbackOwner().lock();
+  std::shared_ptr<DefaultMQPushConsumerImpl> impl = process_queue_shared_ptr->getConsumer().lock();
   if (impl->isStopped()) {
     return;
   }
@@ -129,7 +129,7 @@ void AsyncReceiveMessageCallback::receiveMessageImmediately() {
     return;
   }
 
-  std::shared_ptr<DefaultMQPushConsumerImpl> impl = process_queue_shared_ptr->getCallbackOwner().lock();
+  std::shared_ptr<DefaultMQPushConsumerImpl> impl = process_queue_shared_ptr->getConsumer().lock();
   if (!impl) {
     SPDLOG_INFO("Owner of ProcessQueue[{}] has been released. Ignore further receive message request-response cycles",
                 process_queue_shared_ptr->simpleName());
