@@ -91,7 +91,7 @@ bool MixAll::sha1(const std::string& data, std::string& digest) {
   SHA1_Update(&ctx, data.data(), data.length());
   SHA1_Final(out, &ctx);
   digest.clear();
-  digest.append(reinterpret_cast<const char*>(out), SHA_DIGEST_LENGTH);
+  digest.append(hex(reinterpret_cast<const char*>(out), SHA_DIGEST_LENGTH));
   return true;
 }
 
