@@ -14,7 +14,7 @@ ROCKETMQ_NAMESPACE_BEGIN
 class MixAll {
 public:
   static const int32_t MASTER_BROKER_ID;
-  static const int32_t DEFAULT_FETCH_MESSAGE_BATCH_SIZE;
+  static const int32_t DEFAULT_RECEIVE_MESSAGE_BATCH_SIZE;
   static const uint32_t MAX_MESSAGE_BODY_SIZE;
 
   static const RE2 TOPIC_REGEX;

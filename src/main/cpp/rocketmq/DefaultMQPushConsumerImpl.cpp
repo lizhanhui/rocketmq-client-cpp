@@ -1,151 +1,15 @@
 #include "DefaultMQPushConsumerImpl.h"
-#include "ClientManager.h"
 
+#include "AsyncReceiveMessageCallback.h"
+#include "ClientManager.h"
 #include "MessageAccessor.h"
 #include "MixAll.h"
+#include "ProcessQueue.h"
 #include "Signature.h"
-#include "include/ProcessQueue.h"
 #include "rocketmq/MQClientException.h"
 #include <chrono>
-#include <string>
 
 ROCKETMQ_NAMESPACE_BEGIN
-
-AsyncReceiveMessageCallback::AsyncReceiveMessageCallback(ProcessQueueWeakPtr process_queue)
-    : process_queue_(std::move(process_queue)) {
-  receive_message_later_ = std::bind(&AsyncReceiveMessageCallback::checkThrottleThenReceive, this);
-}
-
-void AsyncReceiveMessageCallback::onSuccess(ReceiveMessageResult& result) {
-  ProcessQueueSharedPtr process_queue_shared_ptr = process_queue_.lock();
-  if (!process_queue_shared_ptr) {
-    SPDLOG_WARN("Process queue has been released. Drop PopResult: {}", result.toString());
-    return;
-  }
-
-  std::shared_ptr<DefaultMQPushConsumerImpl> impl = process_queue_shared_ptr->getCallbackOwner().lock();
-  if (impl->isStopped()) {
-    return;
-  }
-
-  switch (result.status()) {
-  case ReceiveMessageStatus::OK:
-    SPDLOG_DEBUG("Receive messages from broker[host={}] returns with status=FOUND, msgListSize={}, queue={}",
-                 result.sourceHost(), result.getMsgFoundList().size(), process_queue_shared_ptr->simpleName());
-    process_queue_shared_ptr->cacheMessages(result.getMsgFoundList());
-    impl->getConsumeMessageService()->signalDispatcher();
-
-    if (process_queue_shared_ptr->consumeType() == ConsumeMessageType::PULL) {
-      process_queue_shared_ptr->nextOffset(result.next_offset_);
-    }
-    checkThrottleThenReceive();
-    break;
-  case ReceiveMessageStatus::DATA_CORRUPTED:
-    if (process_queue_shared_ptr->consumeType() == POP) {
-      process_queue_shared_ptr->cacheMessages(result.messages_);
-      impl->getConsumeMessageService()->signalDispatcher();
-    }
-    checkThrottleThenReceive();
-    break;
-
-  case ReceiveMessageStatus::OUT_OF_RANGE:
-    assert(ConsumeMessageType::PULL == process_queue_shared_ptr->consumeType());
-    process_queue_shared_ptr->nextOffset(result.next_offset_);
-    checkThrottleThenReceive();
-    break;
-  case ReceiveMessageStatus::DEADLINE_EXCEEDED:
-    SPDLOG_DEBUG("Receive messages from broker[host={}] returns with status=DEADLINE_EXCEEDED, queue={}",
-                 result.sourceHost(), process_queue_shared_ptr->simpleName());
-    checkThrottleThenReceive();
-    break;
-  case ReceiveMessageStatus::INTERNAL:
-    SPDLOG_DEBUG("Receive messages from broker[host={}] returns with status=UNKNOWN, queue={}", result.sourceHost(),
-                 process_queue_shared_ptr->simpleName());
-    receiveMessageLater();
-    break;
-  case ReceiveMessageStatus::RESOURCE_EXHAUSTED:
-    SPDLOG_DEBUG("Receive messages from broker[host={}] returns with status=RESOURCE_EXHAUSTED, queue={}",
-                 result.sourceHost(), process_queue_shared_ptr->simpleName());
-    receiveMessageLater();
-    break;
-  case ReceiveMessageStatus::NOT_FOUND:
-    SPDLOG_DEBUG("Receive messages from broker[host={}] returns with status=NOT_FOUND, queue={}", result.sourceHost(),
-                 process_queue_shared_ptr->simpleName());
-    receiveMessageLater();
-    break;
-  default:
-    SPDLOG_WARN("Unknown receive message status: {} from broker[host={}], queue={}", result.status(),
-                result.sourceHost(), process_queue_shared_ptr->simpleName());
-    receiveMessageLater();
-    break;
-  }
-}
-
-const char* AsyncReceiveMessageCallback::RECEIVE_LATER_TASK_NAME = "receive-later-task";
-
-void AsyncReceiveMessageCallback::checkThrottleThenReceive() {
-  auto process_queue = process_queue_.lock();
-  if (!process_queue) {
-    SPDLOG_WARN("Process queue should have been destructed");
-    return;
-  }
-
-  if (process_queue->shouldThrottle()) {
-    SPDLOG_INFO("Number of messages in {} exceeds throttle threshold. Receive messages later.",
-                process_queue->simpleName());
-    process_queue->updateThrottleTimestamp();
-    receiveMessageLater();
-  } else {
-    // Receive message immediately
-    receiveMessageImmediately();
-  }
-}
-
-void AsyncReceiveMessageCallback::onException(MQException& e) {
-  auto process_queue_ptr = process_queue_.lock();
-  if (process_queue_ptr) {
-    SPDLOG_WARN("pop message error:{}, pop message later. Queue={}", e.what(), process_queue_ptr->simpleName());
-    // pop message later
-    receiveMessageLater();
-  }
-}
-
-void AsyncReceiveMessageCallback::receiveMessageLater() {
-  auto process_queue = process_queue_.lock();
-  if (!process_queue) {
-    return;
-  }
-
-  auto client_instance = process_queue->getClientInstance();
-  std::weak_ptr<AsyncReceiveMessageCallback> receive_callback_weak_ptr(shared_from_this());
-
-  auto task = [receive_callback_weak_ptr]() {
-    auto async_receive_ptr = receive_callback_weak_ptr.lock();
-    if (async_receive_ptr) {
-      async_receive_ptr->checkThrottleThenReceive();
-    }
-  };
-
-  client_instance->getScheduler().schedule(task, RECEIVE_LATER_TASK_NAME, std::chrono::seconds(1),
-                                           std::chrono::seconds(0));
-}
-
-void AsyncReceiveMessageCallback::receiveMessageImmediately() {
-  ProcessQueueSharedPtr process_queue_shared_ptr = process_queue_.lock();
-  if (!process_queue_shared_ptr) {
-    SPDLOG_INFO("ProcessQueue has been released. Ignore further receive message request-response cycles");
-    return;
-  }
-
-  std::shared_ptr<DefaultMQPushConsumerImpl> impl = process_queue_shared_ptr->getCallbackOwner().lock();
-  if (!impl) {
-    SPDLOG_INFO("Owner of ProcessQueue[{}] has been released. Ignore further receive message request-response cycles",
-                process_queue_shared_ptr->simpleName());
-    return;
-  }
-  impl->receiveMessage(process_queue_shared_ptr->getMQMessageQueue(), process_queue_shared_ptr->getFilterExpression(),
-                       process_queue_shared_ptr->consumeType());
-}
 
 const int32_t DefaultMQPushConsumerImpl::MAX_CACHED_MESSAGE_COUNT = 65535;
 const int32_t DefaultMQPushConsumerImpl::DEFAULT_CACHED_MESSAGE_COUNT = 1024;
@@ -154,7 +18,7 @@ const int32_t DefaultMQPushConsumerImpl::DEFAULT_CONSUME_THREAD_POOL_SIZE = 20;
 
 DefaultMQPushConsumerImpl::DefaultMQPushConsumerImpl(std::string group_name)
     : BaseImpl(std::move(group_name)), consume_thread_pool_size_(DEFAULT_CONSUME_THREAD_POOL_SIZE),
-      message_listener_ptr_(nullptr), consume_batch_size_(DEFAULT_CONSUME_MESSAGE_BATCH_SIZE),
+      message_listener_(nullptr), consume_batch_size_(DEFAULT_CONSUME_MESSAGE_BATCH_SIZE),
       max_cached_message_number_per_queue_(DEFAULT_CACHED_MESSAGE_COUNT) {}
 
 DefaultMQPushConsumerImpl::~DefaultMQPushConsumerImpl() { SPDLOG_DEBUG("DefaultMQPushConsumerImpl is destructed"); }
@@ -172,16 +36,16 @@ void DefaultMQPushConsumerImpl::start() {
   fetchRoutes();
   heartbeat();
 
-  if (message_listener_ptr_) {
-    if (message_listener_ptr_->listenerType() == MessageListenerType::FIFO) {
+  if (message_listener_) {
+    if (message_listener_->listenerType() == MessageListenerType::FIFO) {
       SPDLOG_INFO("start orderly consume service: {}", group_name_);
-      consume_message_service_ = std::make_shared<ConsumeFifoMessageService>(
-          shared_from_this(), consume_thread_pool_size_, message_listener_ptr_);
+      consume_message_service_ =
+          std::make_shared<ConsumeFifoMessageService>(shared_from_this(), consume_thread_pool_size_, message_listener_);
     } else {
       // For backward compatibility, by default, ConsumeMessageConcurrentlyService is assumed.
       SPDLOG_INFO("start concurrently consume service: {}", group_name_);
       consume_message_service_ = std::make_shared<ConsumeStandardMessageService>(
-          shared_from_this(), consume_thread_pool_size_, message_listener_ptr_);
+          shared_from_this(), consume_thread_pool_size_, message_listener_);
     }
     consume_message_service_->start();
 
@@ -454,6 +318,7 @@ ProcessQueueSharedPtr DefaultMQPushConsumerImpl::getOrCreateProcessQueue(const M
       process_queue =
           std::make_shared<ProcessQueue>(message_queue, filter_expression, consume_type,
                                          max_cached_message_number_per_queue_, shared_from_this(), client_instance_);
+      process_queue->fetchBatchSize(receive_batch_size_);
       std::shared_ptr<AsyncReceiveMessageCallback> receive_callback =
           std::make_shared<AsyncReceiveMessageCallback>(process_queue);
       process_queue->callback(receive_callback);
@@ -575,7 +440,8 @@ void DefaultMQPushConsumerImpl::redirectToDLQ(const MQMessageExt& message, const
   request.set_reconsume_times(message.getReconsumeTimes());
   request.set_max_reconsume_times(max_delivery_attempts_);
 
-  client_instance_->redirectToDeadLetterQueue(target_host, metadata, request, absl::ToChronoMilliseconds(io_timeout_),  cb);
+  client_instance_->redirectToDeadLetterQueue(target_host, metadata, request, absl::ToChronoMilliseconds(io_timeout_),
+                                              cb);
 }
 
 void DefaultMQPushConsumerImpl::wrapAckMessageRequest(const MQMessageExt& msg, AckMessageRequest& request) {
@@ -613,7 +479,7 @@ void DefaultMQPushConsumerImpl::maxCachedMessageNumberPerQueue(int max_cached_me
 }
 
 void DefaultMQPushConsumerImpl::registerMessageListener(MessageListener* message_listener) {
-  message_listener_ptr_ = message_listener;
+  message_listener_ = message_listener;
 }
 
 std::size_t DefaultMQPushConsumerImpl::getProcessQueueTableSize() {
@@ -661,7 +527,7 @@ void DefaultMQPushConsumerImpl::fetchRoutes() {
     return;
   }
 
-  int countdown = topics.size();
+  std::vector<std::string>::size_type countdown = topics.size();
   absl::Mutex mtx;
   absl::CondVar cv;
   int acquired = 0;

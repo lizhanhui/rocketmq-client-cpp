@@ -86,7 +86,7 @@ public:
 
   uint32_t consumeBatchSize() const;
 
-  int32_t receiveBatchSize() const { return receive_message_batch_size_; }
+  int32_t receiveBatchSize() const { return receive_batch_size_; }
 
   void consumeBatchSize(uint32_t consume_batch_size);
 
@@ -149,14 +149,13 @@ private:
    */
   int consume_thread_pool_size_;
 
-  MessageListener* message_listener_ptr_;
+  MessageListener* message_listener_;
 
   std::shared_ptr<ConsumeMessageService> consume_message_service_;
 
   uint32_t consume_batch_size_;
 
-  // TODO: make it configurable
-  int32_t receive_message_batch_size_{32};
+  int32_t receive_batch_size_{MixAll::DEFAULT_RECEIVE_MESSAGE_BATCH_SIZE};
 
   int max_cached_message_number_per_queue_;
 
@@ -192,35 +191,6 @@ private:
   static const int32_t DEFAULT_CACHED_MESSAGE_COUNT;
   static const int32_t DEFAULT_CONSUME_MESSAGE_BATCH_SIZE;
   static const int32_t DEFAULT_CONSUME_THREAD_POOL_SIZE;
-};
-
-class AsyncReceiveMessageCallback : public ReceiveMessageCallback,
-                                    public std::enable_shared_from_this<AsyncReceiveMessageCallback> {
-public:
-  explicit AsyncReceiveMessageCallback(ProcessQueueWeakPtr process_queue);
-
-  ~AsyncReceiveMessageCallback() override = default;
-
-  void onSuccess(ReceiveMessageResult& result) override;
-
-  void onException(MQException& e) override;
-
-  void receiveMessageLater();
-
-  void receiveMessageImmediately();
-
-private:
-  /**
-   * Hold a weak_ptr to ProcessQueue. Once ProcessQueue was released, stop the
-   * pop-cycle immediately.
-   */
-  ProcessQueueWeakPtr process_queue_;
-
-  std::function<void(void)> receive_message_later_;
-
-  void checkThrottleThenReceive();
-
-  static const char* RECEIVE_LATER_TASK_NAME;
 };
 
 ROCKETMQ_NAMESPACE_END

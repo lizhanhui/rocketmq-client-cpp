@@ -9,7 +9,6 @@
 #include "ClientInstance.h"
 #include "FilterExpression.h"
 #include "MixAll.h"
-#include "ReceiveMessageCallback.h"
 #include "TopicAssignmentInfo.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -127,6 +126,10 @@ public:
     return has_fifo_task_bound_.compare_exchange_strong(expected, true, std::memory_order_relaxed);
   }
 
+  void fetchBatchSize(int32_t fetch_batch_size) {
+    fetch_batch_size_ = fetch_batch_size;
+  }
+
 private:
   MQMessageQueue message_queue_;
 
@@ -137,7 +140,8 @@ private:
 
   ConsumeMessageType consume_type_{ConsumeMessageType::POP};
 
-  int batch_size_;
+  int fetch_batch_size_;
+
   std::chrono::milliseconds invisible_time_;
 
   std::chrono::steady_clock::time_point last_poll_timestamp_{std::chrono::steady_clock::now()};

@@ -1,12 +1,13 @@
 add_library(rocketmq_obj OBJECT)
 target_sources(rocketmq_obj
         PRIVATE
+            AsyncReceiveMessageCallback.cpp
             SendCallbacks.cpp
             AwaitPullCallback.cpp
             BaseImpl.cpp
             ConsumeMessageService.cpp
-        ConsumeStandardMessageService.cpp
-        ConsumeFifoMessageService.cpp
+            ConsumeStandardMessageService.cpp
+            ConsumeFifoMessageService.cpp
             CredentialsProvider.cpp
             DefaultMQProducer.cpp
             DefaultMQProducerImpl.cpp

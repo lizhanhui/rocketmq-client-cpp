@@ -18,7 +18,7 @@ ProcessQueue::ProcessQueue(MQMessageQueue message_queue, FilterExpression filter
                            std::weak_ptr<DefaultMQPushConsumerImpl> call_back_owner,
                            std::shared_ptr<ClientInstance> client_instance)
     : message_queue_(std::move(message_queue)), filter_expression_(std::move(filter_expression)),
-      consume_type_(consume_type), batch_size_(MixAll::DEFAULT_FETCH_MESSAGE_BATCH_SIZE),
+      consume_type_(consume_type), fetch_batch_size_(MixAll::DEFAULT_RECEIVE_MESSAGE_BATCH_SIZE),
       invisible_time_(MixAll::millisecondsOf(MixAll::DEFAULT_INVISIBLE_TIME_)), max_cache_quantity_(max_cache_size),
       max_cache_memory_(), simple_name_(message_queue_.simpleName()), call_back_owner_(std::move(call_back_owner)),
       client_instance_(std::move(client_instance)), cached_message_quantity_(0), cached_message_memory_(0) {
@@ -223,7 +223,7 @@ void ProcessQueue::wrapPopMessageRequest(absl::flat_hash_map<std::string, std::s
   }
 
   // Batch size
-  request.set_batch_size(batch_size_);
+  request.set_batch_size(fetch_batch_size_);
 
   // Consume policy
   request.set_consume_policy(rmq::ConsumePolicy::RESUME);
