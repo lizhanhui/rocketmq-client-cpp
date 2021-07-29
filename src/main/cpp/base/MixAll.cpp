@@ -31,7 +31,7 @@ const RE2 MixAll::TOPIC_REGEX("[a-zA-Z0-9\\-_]{3,64}");
 
 const std::chrono::duration<long long> MixAll::DEFAULT_INVISIBLE_TIME_ = std::chrono::seconds(30);
 
-const std::chrono::duration<long long> MixAll::PROCESS_QUEUE_EXPIRATION_THRESHOLD_ = std::chrono::seconds(20);
+const std::chrono::duration<long long> MixAll::PROCESS_QUEUE_EXPIRATION_THRESHOLD_ = std::chrono::seconds(120);
 
 const int32_t MixAll::MAX_SEND_MESSAGE_ATTEMPT_TIMES_ = 3;
 

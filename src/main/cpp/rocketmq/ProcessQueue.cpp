@@ -14,11 +14,11 @@ using namespace std::chrono;
 ROCKETMQ_NAMESPACE_BEGIN
 
 ProcessQueue::ProcessQueue(MQMessageQueue message_queue, FilterExpression filter_expression,
-                           ConsumeMessageType consume_type, std::weak_ptr<DefaultMQPushConsumerImpl> call_back_owner,
+                           ConsumeMessageType consume_type, std::weak_ptr<DefaultMQPushConsumerImpl> consumer,
                            std::shared_ptr<ClientInstance> client_instance)
     : message_queue_(std::move(message_queue)), filter_expression_(std::move(filter_expression)),
       consume_type_(consume_type), invisible_time_(MixAll::millisecondsOf(MixAll::DEFAULT_INVISIBLE_TIME_)),
-      simple_name_(message_queue_.simpleName()), consumer_(std::move(call_back_owner)),
+      simple_name_(message_queue_.simpleName()), consumer_(std::move(consumer)),
       client_instance_(std::move(client_instance)), cached_message_quantity_(0), cached_message_memory_(0) {
   SPDLOG_DEBUG("Created ProcessQueue={}", simpleName());
 }
@@ -32,12 +32,9 @@ void ProcessQueue::callback(std::shared_ptr<ReceiveMessageCallback> callback) {
 }
 
 bool ProcessQueue::expired() const {
-  auto duration = std::chrono::steady_clock::now() - last_poll_timestamp_;
-  auto throttle_duration = std::chrono::steady_clock::now() - last_throttle_timestamp_;
-  if (duration > MixAll::PROCESS_QUEUE_EXPIRATION_THRESHOLD_ &&
-      throttle_duration > MixAll::PROCESS_QUEUE_EXPIRATION_THRESHOLD_) {
-    SPDLOG_WARN("ProcessQueue={} is expired. Duration from last poll is: {}ms; from last throttle is: {}ms",
-                simpleName(), MixAll::millisecondsOf(duration), MixAll::millisecondsOf(throttle_duration));
+  auto duration = std::chrono::steady_clock::now() - idle_since_;
+  if (duration > MixAll::PROCESS_QUEUE_EXPIRATION_THRESHOLD_) {
+    SPDLOG_WARN("ProcessQueue={} is expired. It remains idle for {}ms", simpleName(), MixAll::millisecondsOf(duration));
     return true;
   }
   return false;
@@ -93,7 +90,7 @@ void ProcessQueue::popMessage() {
   Signature::sign(consumer_client.get(), metadata);
 
   wrapPopMessageRequest(metadata, request);
-  last_poll_timestamp_ = std::chrono::steady_clock::now();
+  syncIdleState();
   SPDLOG_DEBUG("Try to pop message from {}", message_queue_.simpleName());
   client_instance_->receiveMessage(message_queue_.serviceAddress(), metadata, request,
                                    absl::ToChronoMilliseconds(consumer_client->getIoTimeout()), receive_callback_);
@@ -103,7 +100,7 @@ void ProcessQueue::pullMessage() {
   rmq::PullMessageRequest request;
   absl::flat_hash_map<std::string, std::string> metadata;
   wrapPullMessageRequest(metadata, request);
-  last_poll_timestamp_ = std::chrono::steady_clock::now();
+  syncIdleState();
   SPDLOG_DEBUG("Try to pull message from {}", message_queue_.simpleName());
   client_instance_->pullMessage(message_queue_.serviceAddress(), metadata, request, receive_callback_);
 }

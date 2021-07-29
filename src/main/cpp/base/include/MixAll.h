@@ -5,9 +5,7 @@
 #include <cstdint>
 #include <string>
 #include <unistd.h>
-
 #include "rocketmq/MQMessage.h"
-#include "rocketmq/RocketMQ.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
 

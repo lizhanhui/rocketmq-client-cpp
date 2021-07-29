@@ -85,7 +85,7 @@ void AsyncReceiveMessageCallback::checkThrottleThenReceive() {
   if (process_queue->shouldThrottle()) {
     SPDLOG_INFO("Number of messages in {} exceeds throttle threshold. Receive messages later.",
                 process_queue->simpleName());
-    process_queue->updateThrottleTimestamp();
+    process_queue->syncIdleState();
     receiveMessageLater();
   } else {
     // Receive message immediately

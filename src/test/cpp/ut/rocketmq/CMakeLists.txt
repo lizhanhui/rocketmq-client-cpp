@@ -33,8 +33,10 @@ target_link_libraries(message_test
 
 add_executable(process_queue_test ProcessQueueTest.cpp)
 target_link_libraries(process_queue_test
-        gtest_main
-        rocketmq_library)
+        PRIVATE
+            gtest_main
+            rpc_client_mock
+            rocketmq_library)
 
 add_executable(ut_credentials_provider CredentialsProviderTest.cpp)
 target_link_libraries(ut_credentials_provider

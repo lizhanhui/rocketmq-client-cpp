@@ -9,14 +9,15 @@
 #include "ClientInstance.h"
 #include "FilterExpression.h"
 #include "MixAll.h"
-#include "TopicAssignmentInfo.h"
 #include "ReceiveMessageCallback.h"
+#include "TopicAssignmentInfo.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "apache/rocketmq/v1/service.pb.h"
 #include "rocketmq/ConsumerType.h"
 #include "rocketmq/MQMessageExt.h"
 #include "rocketmq/MQMessageQueue.h"
+#include "gtest/gtest_prod.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -52,8 +53,7 @@ class DefaultMQPushConsumerImpl;
 class ProcessQueue {
 public:
   ProcessQueue(MQMessageQueue message_queue, FilterExpression filter_expression, ConsumeMessageType consume_type,
-               std::weak_ptr<DefaultMQPushConsumerImpl> call_back_owner,
-               std::shared_ptr<ClientInstance> client_instance);
+               std::weak_ptr<DefaultMQPushConsumerImpl> consumer, std::shared_ptr<ClientInstance> client_instance);
 
   ~ProcessQueue();
 
@@ -102,8 +102,9 @@ public:
    */
   bool take(uint32_t batch_size, std::vector<MQMessageExt>& messages) LOCKS_EXCLUDED(messages_mtx_);
 
-  void updateThrottleTimestamp() { last_throttle_timestamp_ = std::chrono::steady_clock::now(); }
-
+  void syncIdleState() {
+    idle_since_ = std::chrono::steady_clock::now();
+  }
   ConsumeMessageType consumeType() const { return consume_type_; }
 
   void nextOffset(int64_t next_offset) {
@@ -139,9 +140,7 @@ private:
 
   std::chrono::milliseconds invisible_time_;
 
-  std::chrono::steady_clock::time_point last_poll_timestamp_{std::chrono::steady_clock::now()};
-
-  std::chrono::steady_clock::time_point last_throttle_timestamp_{std::chrono::steady_clock::now()};
+  std::chrono::steady_clock::time_point idle_since_{std::chrono::steady_clock::now()};
 
   absl::Time create_timestamp_{absl::Now()};
 
@@ -188,6 +187,8 @@ private:
   void pullMessage();
   void wrapPullMessageRequest(absl::flat_hash_map<std::string, std::string>& metadata,
                               rmq::PullMessageRequest& request);
+
+  FRIEND_TEST(ProcessQueueTest, testExpired);
 };
 
 using ProcessQueueSharedPtr = std::shared_ptr<ProcessQueue>;

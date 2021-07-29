@@ -3,10 +3,11 @@ target_sources(base_obj
         PRIVATE
             GHttpClient.cpp
             HostInfo.cpp
+            MessageAccessor.cpp
             Metadata.cpp
             MixAll.cpp
             MQMessage.cpp
-            PermissionHelper.cpp
+            MQMessageExt.cpp
             Protocol.cpp
             RateLimiter.cpp
             TopAddressing.cpp
