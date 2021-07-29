@@ -428,7 +428,7 @@ void DefaultMQPushConsumerImpl::forwardToDeadLetterQueue(const MQMessageExt& mes
   request.set_client_id(clientId());
   request.set_message_id(message.getMsgId());
 
-  request.set_reconsume_times(message.getReconsumeTimes());
+  request.set_delivery_attempt(message.getReconsumeTimes());
   request.set_max_delivery_attempts(max_delivery_attempts_);
 
   client_instance_->redirectToDeadLetterQueue(target_host, metadata, request, absl::ToChronoMilliseconds(io_timeout_),

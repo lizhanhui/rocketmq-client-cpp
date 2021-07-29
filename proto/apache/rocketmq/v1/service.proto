@@ -116,7 +116,7 @@ message SendMessageToDeadLetterQueueRequest {
   string client_id = 3;
   string receipt_handle = 4;
   string message_id = 5;
-  int32 reconsume_times = 6;
+  int32 delivery_attempt = 6;
   int32 max_delivery_attempts = 7;
 }
 
@@ -200,7 +200,7 @@ message ClientResourceBundle {
 }
 
 message GenericPollingRequest {
-  ClientResourceBundle client_resource_bundle = 1;
+ ClientResourceBundle client_resource_bundle = 1;
 }
 
 message GenericPollingResponse {
