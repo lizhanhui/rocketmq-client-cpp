@@ -77,6 +77,7 @@ TEST_F(ProcessQueueTest, testReceiveMessage) {
     invocation_context->onCompletion(true);
   };
   EXPECT_CALL(*rpc_client_, asyncReceive).Times(testing::AtLeast(1)).WillRepeatedly(testing::Invoke(callback));
+  EXPECT_CALL(*rpc_client_, ok).Times(testing::AtLeast(1)).WillRepeatedly(testing::Return(true));
   process_queue_->receiveMessage();
 }
 
