@@ -43,8 +43,8 @@ public:
 
   MOCK_METHOD(void, asyncPull, (const PullMessageRequest&, InvocationContext<PullMessageResponse>*), (override));
 
-  MOCK_METHOD(void, asyncSendMessageToDeadLetterQueue,
-              (const SendMessageToDeadLetterQueueRequest&, InvocationContext<SendMessageToDeadLetterQueueResponse>*),
+  MOCK_METHOD(void, asyncForwardMessageToDeadLetterQueue,
+              (const ForwardMessageToDeadLetterQueueRequest&, InvocationContext<ForwardMessageToDeadLetterQueueResponse>*),
               (override));
 
   MOCK_METHOD(bool, needHeartbeat, (), (override));

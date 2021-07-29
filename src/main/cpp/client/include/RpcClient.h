@@ -53,8 +53,8 @@ using QueryOffsetRequest = rmq::QueryOffsetRequest;
 using QueryOffsetResponse = rmq::QueryOffsetResponse;
 using PullMessageRequest = rmq::PullMessageRequest;
 using PullMessageResponse = rmq::PullMessageResponse;
-using SendMessageToDeadLetterQueueRequest = rmq::SendMessageToDeadLetterQueueRequest;
-using SendMessageToDeadLetterQueueResponse = rmq::SendMessageToDeadLetterQueueResponse;
+using ForwardMessageToDeadLetterQueueRequest = rmq::ForwardMessageToDeadLetterQueueRequest;
+using ForwardMessageToDeadLetterQueueResponse = rmq::ForwardMessageToDeadLetterQueueResponse;
 
 class RpcClient {
 public:
@@ -101,8 +101,8 @@ public:
                          InvocationContext<PullMessageResponse>* invocation_context) = 0;
 
   virtual void
-  asyncSendMessageToDeadLetterQueue(const SendMessageToDeadLetterQueueRequest& request,
-                                    InvocationContext<SendMessageToDeadLetterQueueResponse>* invocation_context) = 0;
+  asyncForwardMessageToDeadLetterQueue(const ForwardMessageToDeadLetterQueueRequest& request,
+                                       InvocationContext<ForwardMessageToDeadLetterQueueResponse>* invocation_context) = 0;
 
   /**
    * Indicate if heartbeat is required.

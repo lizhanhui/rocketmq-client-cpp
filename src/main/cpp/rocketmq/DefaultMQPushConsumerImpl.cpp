@@ -412,13 +412,14 @@ void DefaultMQPushConsumerImpl::nack(const MQMessageExt& msg, const std::functio
   SPDLOG_DEBUG("Send message nack to broker server[host={}]", target_host);
 }
 
-void DefaultMQPushConsumerImpl::forwardToDeadLetterQueue(const MQMessageExt& message, const std::function<void(bool)>& cb) {
+void DefaultMQPushConsumerImpl::forwardToDeadLetterQueue(const MQMessageExt& message,
+                                                         const std::function<void(bool)>& cb) {
   std::string target_host = MessageAccessor::targetEndpoint(message);
 
   absl::flat_hash_map<std::string, std::string> metadata;
   Signature::sign(this, metadata);
 
-  SendMessageToDeadLetterQueueRequest request;
+  ForwardMessageToDeadLetterQueueRequest request;
   request.mutable_group()->set_arn(arn_);
   request.mutable_group()->set_name(group_name_);
 
@@ -431,8 +432,8 @@ void DefaultMQPushConsumerImpl::forwardToDeadLetterQueue(const MQMessageExt& mes
   request.set_delivery_attempt(message.getDeliveryAttempt());
   request.set_max_delivery_attempts(max_delivery_attempts_);
 
-  client_instance_->redirectToDeadLetterQueue(target_host, metadata, request, absl::ToChronoMilliseconds(io_timeout_),
-                                              cb);
+  client_instance_->forwardMessageToDeadLetterQueue(target_host, metadata, request,
+                                                    absl::ToChronoMilliseconds(io_timeout_), cb);
 }
 
 void DefaultMQPushConsumerImpl::wrapAckMessageRequest(const MQMessageExt& msg, AckMessageRequest& request) {

@@ -1202,17 +1202,17 @@ void ClientInstance::pullMessage(const std::string& target_host,
   client->asyncPull(request, invocation_context);
 }
 
-void ClientInstance::redirectToDeadLetterQueue(
+void ClientInstance::forwardMessageToDeadLetterQueue(
     const std::string& target_host, const absl::flat_hash_map<std::string, std::string>& metadata,
-    const SendMessageToDeadLetterQueueRequest& request, std::chrono::milliseconds timeout,
-    const std::function<void(const InvocationContext<SendMessageToDeadLetterQueueResponse>*)>& cb) {
+    const ForwardMessageToDeadLetterQueueRequest& request, std::chrono::milliseconds timeout,
+    const std::function<void(const InvocationContext<ForwardMessageToDeadLetterQueueResponse>*)>& cb) {
   auto client = getRpcClient(target_host);
   if (!client) {
     cb(nullptr);
     return;
   }
 
-  auto invocation_context = new InvocationContext<SendMessageToDeadLetterQueueResponse>();
+  auto invocation_context = new InvocationContext<ForwardMessageToDeadLetterQueueResponse>();
   invocation_context->remote_address = target_host;
   invocation_context->context.set_deadline(std::chrono::system_clock::now() + timeout);
 
@@ -1220,19 +1220,19 @@ void ClientInstance::redirectToDeadLetterQueue(
     invocation_context->context.AddMetadata(item.first, item.second);
   }
 
-  auto callback = [cb](const InvocationContext<SendMessageToDeadLetterQueueResponse>* invocation_context) {
+  auto callback = [cb](const InvocationContext<ForwardMessageToDeadLetterQueueResponse>* invocation_context) {
     if (!invocation_context->status.ok()) {
       SPDLOG_WARN("Failed to transmit SendMessageToDeadLetterQueueRequest to {}", invocation_context->remote_address);
       cb(invocation_context);
       return;
     }
 
-    SPDLOG_DEBUG("Received redirectToDeadLetterQueue response from server[host={}]",
+    SPDLOG_DEBUG("Received forwardToDeadLetterQueue response from server[host={}]",
                  invocation_context->remote_address);
     cb(invocation_context);
   };
   invocation_context->callback = callback;
-  client->asyncSendMessageToDeadLetterQueue(request, invocation_context);
+  client->asyncForwardMessageToDeadLetterQueue(request, invocation_context);
 }
 
 void ClientInstance::logStats() {

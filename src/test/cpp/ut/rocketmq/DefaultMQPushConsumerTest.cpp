@@ -1,6 +1,7 @@
 #include "rocketmq/DefaultMQPushConsumer.h"
 #include "ClientManager.h"
 #include "DefaultMQPushConsumerImpl.h"
+#include "InvocationContext.h"
 #include "MQClientTest.h"
 #include "absl/time/time.h"
 #include "rocketmq/MQMessageExt.h"
@@ -144,6 +145,13 @@ public:
       message->set_body("Sample body");
     }
 
+    invocation_context->onCompletion(true);
+  }
+
+  void
+  mockForwardMessageToDeadLetterQueue(const ForwardMessageToDeadLetterQueueRequest& request,
+                                      InvocationContext<ForwardMessageToDeadLetterQueueResponse>* invocation_context) {
+    invocation_context->response.mutable_common()->mutable_status()->set_code(google::rpc::Code::OK);
     invocation_context->onCompletion(true);
   }
 

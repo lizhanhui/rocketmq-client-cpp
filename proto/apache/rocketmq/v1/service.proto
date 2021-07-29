@@ -110,7 +110,7 @@ message NackMessageResponse {
   ResponseCommon common = 1;
 }
 
-message SendMessageToDeadLetterQueueRequest {
+message ForwardMessageToDeadLetterQueueRequest {
   Resource group = 1;
   Resource topic = 2;
   string client_id = 3;
@@ -120,7 +120,7 @@ message SendMessageToDeadLetterQueueRequest {
   int32 max_delivery_attempts = 7;
 }
 
-message SendMessageToDeadLetterQueueResponse {
+message ForwardMessageToDeadLetterQueueResponse {
   ResponseCommon common = 1;
 }
 
@@ -271,7 +271,7 @@ service MessagingService {
   rpc NackMessage(NackMessageRequest) returns (NackMessageResponse) {
   }
 
-  rpc SendMessageToDeadLetterQueue(SendMessageToDeadLetterQueueRequest) returns (SendMessageToDeadLetterQueueResponse) {
+  rpc ForwardMessageToDeadLetterQueue(ForwardMessageToDeadLetterQueueRequest) returns (ForwardMessageToDeadLetterQueueResponse) {
   }
 
   rpc EndTransaction(EndTransactionRequest) returns (EndTransactionResponse) {
