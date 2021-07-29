@@ -1,5 +1,6 @@
 #include "ProcessQueue.h"
 #include "gtest/gtest.h"
+#include "ClientManager.h"
 #include "ClientInstance.h"
 #include "DefaultMQPushConsumerImpl.h"
 #include "InvocationContext.h"
@@ -20,7 +21,13 @@ public:
     message_queue_.setBrokerName(broker_name_);
     message_queue_.setQueueId(queue_id_);
     client_instance_ = std::make_shared<ClientInstance>(arn_);
+    ClientManager::getInstance().addClientInstance(arn_, client_instance_);
     client_instance_->addRpcClient(service_address_, rpc_client_);
+    auto credentials_provider = std::make_shared<StaticCredentialsProvider>(access_key_, access_secret_);
+    consumer_ = std::make_shared<DefaultMQPushConsumerImpl>(group_name_);
+    consumer_->setCredentialsProvider(credentials_provider);
+    consumer_->arn(arn_);
+    consumer_->region(region_);
     process_queue_ = absl::make_unique<ProcessQueue>(message_queue_, filter_expression_, ConsumeMessageType::POP, consumer_, client_instance_);
   }
 
@@ -29,7 +36,11 @@ public:
   }
 
 protected:
+  std::string access_key_{"ak"};
+  std::string access_secret_{"secret"};
+  std::string group_name_{"TestGroup"};
   std::string broker_name_{"broker-a"};
+  std::string region_{"cn-hangzhou"};
   int queue_id_{0};
   std::string topic_{"TestTopic"};
   std::string service_address_{"ipv4:10.0.0.1:10911"};
@@ -37,7 +48,7 @@ protected:
   MQMessageQueue message_queue_;
   std::shared_ptr<testing::NiceMock<RpcClientMock>> rpc_client_;
   std::shared_ptr<ClientInstance> client_instance_;
-  std::weak_ptr<DefaultMQPushConsumerImpl> consumer_;
+  std::shared_ptr<DefaultMQPushConsumerImpl> consumer_;
   std::unique_ptr<ProcessQueue> process_queue_;
   std::string arn_{"arn:test"};
 };
@@ -62,7 +73,7 @@ TEST_F(ProcessQueueTest, testReceiveMessage) {
     std::cout << "callback" << std::endl;
     invocation_context->onCompletion(true);
   };
-  EXPECT_CALL(*rpc_client_, asyncReceive).Times(testing::AtMost(1)).WillRepeatedly(testing::Invoke(callback));
+  EXPECT_CALL(*rpc_client_, asyncReceive).Times(testing::AtLeast(1)).WillRepeatedly(testing::Invoke(callback));
   process_queue_->receiveMessage();
 }
 
