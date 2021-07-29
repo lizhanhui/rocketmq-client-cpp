@@ -125,8 +125,8 @@ void ConsumeFifoMessageService::consumeTask(const ProcessQueueWeakPtr& process_q
       auto callback = std::bind(&ConsumeFifoMessageService::onAck, this, process_queue, message, std::placeholders::_1);
       consumer->ack(message, callback);
     } else {
-      MessageAccessor::setAttemptTimes(message, message.getReconsumeTimes() + 1);
-      if (message.getReconsumeTimes() < consumer->max_delivery_attempts_) {
+      MessageAccessor::setDeliveryAttempt(message, message.getDeliveryAttempt() + 1);
+      if (message.getDeliveryAttempt() < consumer->max_delivery_attempts_) {
         auto task = std::bind(&ConsumeFifoMessageService::scheduleConsumeTask, this, process_queue, message);
         consumer->schedule("Scheduled-Consume-FIFO-Message-Task", task, std::chrono::seconds(1));
       } else {
