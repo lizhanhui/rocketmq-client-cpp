@@ -1,4 +1,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
 cc_library(
     name = "client_library",
     hdrs = glob(["include/*.h"]),
@@ -20,7 +23,6 @@ cc_library(
         "//external:gtest",
         "//third_party/crc:crc_interface",
     ],
-    visibility = ["//visibility:public"],
     defines = [
     ],
 )
@@ -39,5 +41,16 @@ cc_library(
         ":client_library",
         "//external:gtest",
     ],
-    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "receive_message_callback_mock",
+    hdrs = [
+        "mocks/include/ReceiveMessageCallbackMock.h",
+    ],
+    strip_include_prefix = "//src/main/cpp/client/mocks/include",
+    deps = [
+        ":client_library",
+        "//external:gtest",
+    ],
 )

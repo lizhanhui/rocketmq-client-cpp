@@ -1,9 +1,9 @@
 #include "ProcessQueue.h"
-#include "AsyncReceiveMessageCallback.h"
 #include "ClientInstance.h"
 #include "ClientManager.h"
 #include "DefaultMQPushConsumerImpl.h"
 #include "InvocationContext.h"
+#include "ReceiveMessageCallbackMock.h"
 #include "RpcClientMock.h"
 #include "absl/memory/memory.h"
 #include "gtest/gtest.h"
@@ -31,7 +31,7 @@ public:
     consumer_->region(region_);
     process_queue_ = std::make_shared<ProcessQueue>(message_queue_, filter_expression_, ConsumeMessageType::POP,
                                                     consumer_, client_instance_);
-    receive_message_callback_ = std::make_shared<AsyncReceiveMessageCallback>(process_queue_);
+    receive_message_callback_ = std::make_shared<testing::NiceMock<ReceiveMessageCallbackMock>>();
     process_queue_->callback(receive_message_callback_);
   }
 
@@ -52,7 +52,7 @@ protected:
   std::shared_ptr<ClientInstance> client_instance_;
   std::shared_ptr<DefaultMQPushConsumerImpl> consumer_;
   std::shared_ptr<ProcessQueue> process_queue_;
-  std::shared_ptr<AsyncReceiveMessageCallback> receive_message_callback_;
+  std::shared_ptr<testing::NiceMock<ReceiveMessageCallbackMock>> receive_message_callback_;
   std::string arn_{"arn:test"};
 };
 
