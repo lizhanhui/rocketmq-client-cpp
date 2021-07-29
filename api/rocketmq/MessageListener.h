@@ -16,18 +16,18 @@ public:
   virtual MessageListenerType listenerType() = 0;
 };
 
-class FifoMessageListener : public MessageListener {
-public:
-  MessageListenerType listenerType() override { return MessageListenerType::FIFO; }
-
-  virtual ConsumeMessageResult consumeMessage(const std::vector<MQMessageExt>& msgs) = 0;
-};
-
 class StandardMessageListener : public MessageListener {
 public:
   virtual ConsumeMessageResult consumeMessage(const std::vector<MQMessageExt>& msgs) = 0;
 
   MessageListenerType listenerType() override { return MessageListenerType::STANDARD; }
+};
+
+class FifoMessageListener : public MessageListener {
+public:
+  MessageListenerType listenerType() override { return MessageListenerType::FIFO; }
+
+  virtual ConsumeMessageResult consumeMessage(const MQMessageExt& msgs) = 0;
 };
 
 ROCKETMQ_NAMESPACE_END

@@ -10,12 +10,12 @@ using namespace rocketmq;
 
 class SampleMQMessageListener : public StandardMessageListener {
 public:
-  ConsumeStatus consumeMessage(const std::vector<MQMessageExt>& msgs) override {
+  ConsumeMessageResult consumeMessage(const std::vector<MQMessageExt>& msgs) override {
     for (const MQMessageExt& msg : msgs) {
       SPDLOG_INFO("Receive a message. MessageId={}", msg.getMsgId());
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-    return ConsumeStatus::CONSUME_SUCCESS;
+    return ConsumeMessageResult::SUCCESS;
   }
 };
 
@@ -26,7 +26,7 @@ int main(int argc, char* argv[]) {
   logger.init();
 
   const char* cid = "GID_group003";
-  const char *topic = "yc001";
+  const char* topic = "yc001";
   const char* arn = "MQ_INST_1973281269661160_BXmPlOA6";
 
   DefaultMQPushConsumer push_consumer(cid);

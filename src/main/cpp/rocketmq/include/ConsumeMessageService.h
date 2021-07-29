@@ -117,10 +117,21 @@ public:
   MessageListenerType messageListenerType() override;
 
 private:
-  void consumeTask(const ProcessQueueWeakPtr& process_queue, std::vector<MQMessageExt>& msgs);
+  void consumeTask(const ProcessQueueWeakPtr& process_queue, MQMessageExt message);
 
   void submitConsumeTask0(const std::shared_ptr<DefaultMQPushConsumerImpl>& consumer, ProcessQueueWeakPtr process_queue,
-                          std::vector<MQMessageExt> messages);
+                          MQMessageExt message);
+
+  void scheduleAckTask(ProcessQueueWeakPtr process_queue, MQMessageExt message);
+  
+  void onAck(const ProcessQueueWeakPtr& process_queue, MQMessageExt message, bool ok);
+
+  void scheduleConsumeTask(ProcessQueueWeakPtr process_queue, MQMessageExt message);
+
+  void onForwardToDeadLetterQueue(ProcessQueueWeakPtr process_queue, MQMessageExt message, bool ok);
+
+  void scheduleForwardDeadLetterQueueTask(ProcessQueueWeakPtr process_queue, MQMessageExt message);
+
 };
 
 ROCKETMQ_NAMESPACE_END

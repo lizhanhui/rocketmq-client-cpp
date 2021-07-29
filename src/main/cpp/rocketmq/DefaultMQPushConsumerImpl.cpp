@@ -412,7 +412,7 @@ void DefaultMQPushConsumerImpl::nack(const MQMessageExt& msg, const std::functio
   SPDLOG_DEBUG("Send message nack to broker server[host={}]", target_host);
 }
 
-void DefaultMQPushConsumerImpl::redirectToDLQ(const MQMessageExt& message, const std::function<void(bool)>& cb) {
+void DefaultMQPushConsumerImpl::forwardToDeadLetterQueue(const MQMessageExt& message, const std::function<void(bool)>& cb) {
   std::string target_host = MessageAccessor::targetEndpoint(message);
 
   absl::flat_hash_map<std::string, std::string> metadata;
