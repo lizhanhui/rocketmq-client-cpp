@@ -6,6 +6,7 @@
 #include <memory>
 #include <set>
 
+#include "Assignment.h"
 #include "ClientInstance.h"
 #include "FilterExpression.h"
 #include "MixAll.h"
@@ -102,10 +103,18 @@ public:
    */
   bool take(uint32_t batch_size, std::vector<MQMessageExt>& messages) LOCKS_EXCLUDED(messages_mtx_);
 
-  void syncIdleState() {
-    idle_since_ = std::chrono::steady_clock::now();
-  }
+  void syncIdleState() { idle_since_ = std::chrono::steady_clock::now(); }
+
   ConsumeMessageType consumeType() const { return consume_type_; }
+
+  /**
+   * @brief Expose for test purpose only.
+   * 
+   * @param consume_type 
+   */
+  void consumeType(ConsumeMessageType consume_type) {
+    consume_type_ = consume_type;
+  }
 
   void nextOffset(int64_t next_offset) {
     assert(next_offset >= 0);

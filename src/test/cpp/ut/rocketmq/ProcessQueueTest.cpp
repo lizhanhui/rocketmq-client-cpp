@@ -1,4 +1,5 @@
 #include "ProcessQueue.h"
+#include "Assignment.h"
 #include "ClientInstance.h"
 #include "ClientManager.h"
 #include "DefaultMQPushConsumerImpl.h"
@@ -6,7 +7,9 @@
 #include "ReceiveMessageCallbackMock.h"
 #include "RpcClientMock.h"
 #include "absl/memory/memory.h"
+#include "absl/synchronization/mutex.h"
 #include "gtest/gtest.h"
+#include <apache/rocketmq/v1/definition.pb.h>
 #include <chrono>
 #include <iostream>
 #include <memory>
@@ -54,6 +57,7 @@ protected:
   std::shared_ptr<ProcessQueue> process_queue_;
   std::shared_ptr<testing::NiceMock<ReceiveMessageCallbackMock>> receive_message_callback_;
   std::string arn_{"arn:test"};
+  std::string message_body_{"Sample body"};
 };
 
 TEST_F(ProcessQueueTest, testBind) {
@@ -70,15 +74,63 @@ TEST_F(ProcessQueueTest, testExpired) {
   EXPECT_TRUE(process_queue_->expired());
 }
 
-TEST_F(ProcessQueueTest, testReceiveMessage) {
-  auto callback = [](const ReceiveMessageRequest& request,
-                     InvocationContext<ReceiveMessageResponse>* invocation_context) {
-    std::cout << "callback" << std::endl;
+TEST_F(ProcessQueueTest, testReceiveMessageByPop) {
+  absl::Mutex mtx;
+  absl::CondVar cv;
+  bool completed = false;
+  auto callback = [&](const ReceiveMessageRequest& request,
+                      InvocationContext<ReceiveMessageResponse>* invocation_context) {
     invocation_context->onCompletion(true);
+    absl::MutexLock lk(&mtx);
+    completed = true;
+    cv.SignalAll();
   };
   EXPECT_CALL(*rpc_client_, asyncReceive).Times(testing::AtLeast(1)).WillRepeatedly(testing::Invoke(callback));
   EXPECT_CALL(*rpc_client_, ok).Times(testing::AtLeast(1)).WillRepeatedly(testing::Return(true));
+  EXPECT_CALL(*receive_message_callback_, onSuccess).Times(testing::AtLeast(1));
   process_queue_->receiveMessage();
+
+  while (!completed) {
+    absl::MutexLock lk(&mtx);
+    cv.Wait(&mtx);
+  }
+}
+
+TEST_F(ProcessQueueTest, testReceiveMessageByPull) {
+  process_queue_->consumeType(ConsumeMessageType::PULL);
+  absl::Mutex mtx;
+  absl::CondVar cv;
+  bool completed = false;
+  auto callback = [&](const PullMessageRequest& request, InvocationContext<PullMessageResponse>* invocation_context) {
+    invocation_context->response.set_min_offset(0);
+    invocation_context->response.set_next_offset(33);
+    invocation_context->response.set_max_offset(64);
+
+    for (int32_t i = 0; i < request.batch_size(); i++) {
+      auto message = new rmq::Message;
+      message->set_body(message_body_);
+      message->mutable_topic()->set_arn(request.partition().topic().arn());
+      message->mutable_topic()->set_name(request.partition().topic().name());
+      message->mutable_system_attribute()->mutable_body_digest()->set_type(rmq::DigestType::SHA1);
+      std::string digest;
+      MixAll::sha1(message_body_, digest);
+      message->mutable_system_attribute()->mutable_body_digest()->set_checksum(digest);
+      invocation_context->response.mutable_messages()->AddAllocated(message);
+    }
+    invocation_context->onCompletion(true);
+    absl::MutexLock lk(&mtx);
+    completed = true;
+    cv.SignalAll();
+  };
+  EXPECT_CALL(*rpc_client_, asyncPull).Times(testing::AtLeast(1)).WillRepeatedly(testing::Invoke(callback));
+  EXPECT_CALL(*rpc_client_, ok).Times(testing::AtLeast(1)).WillRepeatedly(testing::Return(true));
+  EXPECT_CALL(*receive_message_callback_, onSuccess).Times(testing::AtLeast(1));
+  process_queue_->receiveMessage();
+
+  while (!completed) {
+    absl::MutexLock lk(&mtx);
+    cv.Wait(&mtx);
+  }
 }
 
 ROCKETMQ_NAMESPACE_END
