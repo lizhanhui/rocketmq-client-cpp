@@ -114,3 +114,14 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "filter_expression_test",
+    srcs = [
+        "FilterExpressionTest.cpp",
+    ],
+    deps = [
+        "//src/main/cpp/rocketmq:rocketmq_library",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
