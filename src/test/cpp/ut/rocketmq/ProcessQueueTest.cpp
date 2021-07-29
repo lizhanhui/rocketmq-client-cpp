@@ -1,14 +1,15 @@
 #include "ProcessQueue.h"
-#include "gtest/gtest.h"
-#include "ClientManager.h"
+#include "AsyncReceiveMessageCallback.h"
 #include "ClientInstance.h"
+#include "ClientManager.h"
 #include "DefaultMQPushConsumerImpl.h"
 #include "InvocationContext.h"
-#include "absl/memory/memory.h"
-#include <chrono>
-#include <memory>
 #include "RpcClientMock.h"
+#include "absl/memory/memory.h"
+#include "gtest/gtest.h"
+#include <chrono>
 #include <iostream>
+#include <memory>
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -28,12 +29,13 @@ public:
     consumer_->setCredentialsProvider(credentials_provider);
     consumer_->arn(arn_);
     consumer_->region(region_);
-    process_queue_ = absl::make_unique<ProcessQueue>(message_queue_, filter_expression_, ConsumeMessageType::POP, consumer_, client_instance_);
+    process_queue_ = std::make_shared<ProcessQueue>(message_queue_, filter_expression_, ConsumeMessageType::POP,
+                                                    consumer_, client_instance_);
+    receive_message_callback_ = std::make_shared<AsyncReceiveMessageCallback>(process_queue_);
+    process_queue_->callback(receive_message_callback_);
   }
 
-  void TearDown() override {
-    
-  }
+  void TearDown() override {}
 
 protected:
   std::string access_key_{"ak"};
@@ -49,7 +51,8 @@ protected:
   std::shared_ptr<testing::NiceMock<RpcClientMock>> rpc_client_;
   std::shared_ptr<ClientInstance> client_instance_;
   std::shared_ptr<DefaultMQPushConsumerImpl> consumer_;
-  std::unique_ptr<ProcessQueue> process_queue_;
+  std::shared_ptr<ProcessQueue> process_queue_;
+  std::shared_ptr<AsyncReceiveMessageCallback> receive_message_callback_;
   std::string arn_{"arn:test"};
 };
 
