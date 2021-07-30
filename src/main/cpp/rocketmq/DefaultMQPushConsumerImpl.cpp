@@ -124,7 +124,7 @@ void DefaultMQPushConsumerImpl::setConsumeFromWhere(ConsumeFromWhere consume_fro
 
 void DefaultMQPushConsumerImpl::scanAssignments() {
   SPDLOG_DEBUG("Start of assignment scanning");
-  if (isStopped()) {
+  if (!active()) {
     SPDLOG_INFO("Client has stopped. Abort scanning immediately.");
     return;
   }
@@ -278,7 +278,7 @@ void DefaultMQPushConsumerImpl::syncProcessQueue(const std::string& topic,
       ConsumeMessageType consume_type =
           MessageModel::CLUSTERING == message_model_ ? ConsumeMessageType::POP : ConsumeMessageType::PULL;
       if (!receiveMessage(message_queue, filter_expression, consume_type)) {
-        if (!isStopped()) {
+        if (!active()) {
           SPDLOG_WARN("Failed to initiate receive message request-response-cycle for {}", message_queue.simpleName());
           // TODO: remove it from current assignment such that a second attempt will be made again in the next round.
         }
@@ -293,7 +293,7 @@ ProcessQueueSharedPtr DefaultMQPushConsumerImpl::getOrCreateProcessQueue(const M
   ProcessQueueSharedPtr process_queue;
   {
     absl::MutexLock lock(&process_queue_table_mtx_);
-    if (isStopped()) {
+    if (!active()) {
       SPDLOG_INFO("DefaultMQPushConsumer has stopped. Drop creation of ProcessQueue");
       return process_queue;
     }
@@ -317,7 +317,7 @@ ProcessQueueSharedPtr DefaultMQPushConsumerImpl::getOrCreateProcessQueue(const M
 bool DefaultMQPushConsumerImpl::receiveMessage(const MQMessageQueue& message_queue,
                                                const FilterExpression& filter_expression,
                                                ConsumeMessageType consume_type) {
-  if (isStopped()) {
+  if (!active()) {
     SPDLOG_INFO("DefaultMQPushConsumer has stopped. Drop further receive message request");
     return false;
   }

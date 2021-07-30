@@ -20,5 +20,6 @@ cc_library(
     strip_include_prefix = "//src/main/cpp/rocketmq/mocks/include",
     deps = [
         ":rocketmq_library",
+        "//src/main/cpp/client:client_mocks",
     ],
 )

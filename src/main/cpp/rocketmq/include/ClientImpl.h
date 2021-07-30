@@ -20,8 +20,6 @@ public:
 
   virtual void shutdown();
 
-  bool isStopped() const override;
-
   void getRouteFor(const std::string& topic, const std::function<void(TopicRouteDataPtr)>& cb)
       LOCKS_EXCLUDED(inflight_route_requests_mtx_, topic_route_table_mtx_);
 

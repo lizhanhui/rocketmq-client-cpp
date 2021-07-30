@@ -25,7 +25,6 @@ public:
 
   virtual void schedule(const std::string& task_name, const std::function<void(void)>& task,
                         std::chrono::milliseconds delay) = 0;
-
-  virtual bool isStopped() const = 0;
 };
+
 ROCKETMQ_NAMESPACE_END

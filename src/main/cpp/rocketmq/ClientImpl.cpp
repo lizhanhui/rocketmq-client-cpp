@@ -76,11 +76,6 @@ void ClientImpl::shutdown() {
   client_instance_.reset();
 }
 
-bool ClientImpl::isStopped() const {
-  State current_state = state_.load(std::memory_order_relaxed);
-  return State::STOPPED == current_state || State::STOPPING == current_state;
-}
-
 const char* ClientImpl::UPDATE_ROUTE_TASK_NAME = "route_updater";
 const char* ClientImpl::UPDATE_NAME_SERVER_LIST_TASK_NAME = "name_server_list_updater";
 

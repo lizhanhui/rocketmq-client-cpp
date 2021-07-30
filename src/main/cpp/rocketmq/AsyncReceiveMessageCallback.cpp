@@ -16,7 +16,7 @@ void AsyncReceiveMessageCallback::onSuccess(ReceiveMessageResult& result) {
   }
 
   std::shared_ptr<PushConsumer> impl = process_queue_shared_ptr->getConsumer().lock();
-  if (impl->isStopped()) {
+  if (!impl->active()) {
     return;
   }
 
