@@ -24,3 +24,14 @@ cc_test(
         "@boringssl//:ssl",
     ],
 )
+
+cc_test(
+    name = "client_test",
+    srcs = [
+        "ClientTest.cpp",
+    ],
+    deps = [
+        "//src/main/cpp/client:client_mocks",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

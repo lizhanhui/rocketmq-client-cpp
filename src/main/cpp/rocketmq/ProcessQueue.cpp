@@ -1,8 +1,8 @@
 #include "ProcessQueue.h"
 #include "ClientInstance.h"
-#include "PushConsumer.h"
 #include "Metadata.h"
 #include "Protocol.h"
+#include "PushConsumer.h"
 #include "Signature.h"
 #include <atomic>
 #include <chrono>
@@ -172,7 +172,11 @@ bool ProcessQueue::committedOffset(int64_t& offset) {
   if (offsets_.empty()) {
     return false;
   }
-  offset = offsets_.begin()->offset_;
+  if (offsets_.begin()->released_) {
+    offset = offsets_.begin()->offset_ + 1;
+  } else {
+    offset = offsets_.begin()->offset_;
+  }
   return true;
 }
 

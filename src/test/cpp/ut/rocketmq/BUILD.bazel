@@ -126,3 +126,16 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "consume_message_service_test",
+    srcs = [
+        "ConsumeStandardMessageServiceTest.cpp",
+    ],
+    deps = [
+        "//src/main/cpp/rocketmq:rocketmq_library",
+        "//src/main/cpp/rocketmq:rocketmq_mocks",
+        "//src/main/cpp/base:message_listener_mocks",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

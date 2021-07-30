@@ -48,3 +48,9 @@ target_link_libraries(ut_send_callbacks
         PRIVATE
             gtest_main
             rocketmq_library)
+
+add_executable(consume_message_service ConsumeStandardMessageServiceTest.cpp)
+target_link_libraries(consume_message_service
+        PRIVATE
+            gtest_main
+            rocketmq_library)
