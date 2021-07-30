@@ -69,7 +69,7 @@ protected:
 
   int thread_count_;
   std::unique_ptr<grpc::ThreadPoolInterface> pool_;
-  std::weak_ptr<PushConsumer> consumer_weak_ptr_;
+  std::weak_ptr<PushConsumer> consumer_;
 
   absl::Mutex dispatch_mtx_;
   std::thread dispatch_thread_;

@@ -5,7 +5,7 @@
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-class ClientConfigMock : public ClientConfig {
+class ClientConfigMock : virtual public ClientConfig {
 public:
   ~ClientConfigMock() override = default;
   MOCK_METHOD(const std::string&, region, (), (const override));

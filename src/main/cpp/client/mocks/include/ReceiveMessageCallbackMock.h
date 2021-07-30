@@ -1,3 +1,4 @@
+#pragma once
 #include "ReceiveMessageCallback.h"
 #include "gmock/gmock.h"
 

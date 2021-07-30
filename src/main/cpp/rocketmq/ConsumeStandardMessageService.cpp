@@ -84,7 +84,7 @@ void ConsumeStandardMessageService::consumeTask(const ProcessQueueWeakPtr& proce
   }
   std::string topic = msgs.begin()->getTopic();
   ConsumeMessageResult status;
-  std::shared_ptr<PushConsumer> consumer = consumer_weak_ptr_.lock();
+  std::shared_ptr<PushConsumer> consumer = consumer_.lock();
   // consumer might have been destructed.
   if (!consumer) {
     return;

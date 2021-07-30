@@ -60,7 +60,7 @@ void ConsumeFifoMessageService::submitConsumeTask(const ProcessQueueWeakPtr& pro
     return;
   }
 
-  auto consumer = consumer_weak_ptr_.lock();
+  auto consumer = consumer_.lock();
   if (!consumer) {
     SPDLOG_INFO("Consumer has destructed");
     return;
@@ -86,7 +86,7 @@ void ConsumeFifoMessageService::consumeTask(const ProcessQueueWeakPtr& process_q
   }
   const std::string& topic = message.getTopic();
   ConsumeMessageResult result;
-  std::shared_ptr<PushConsumer> consumer = consumer_weak_ptr_.lock();
+  std::shared_ptr<PushConsumer> consumer = consumer_.lock();
   // consumer might have been destructed.
   if (!consumer) {
     return;
@@ -158,7 +158,7 @@ void ConsumeFifoMessageService::onAck(const ProcessQueueWeakPtr& process_queue, 
   } else {
     SPDLOG_WARN("Failed to acknowledge FIFO message[MessageQueue={}, MsgId={}]", process_queue_ptr->simpleName(),
                 message.getMsgId());
-    auto consumer = consumer_weak_ptr_.lock();
+    auto consumer = consumer_.lock();
     if (!consumer) {
       SPDLOG_WARN("Consumer instance has destructed");
       return;
@@ -190,7 +190,7 @@ void ConsumeFifoMessageService::onForwardToDeadLetterQueue(ProcessQueueWeakPtr p
     return;
   }
 
-  auto consumer = consumer_weak_ptr_.lock();
+  auto consumer = consumer_.lock();
   assert(consumer);
 
   auto task = std::bind(&ConsumeFifoMessageService::scheduleForwardDeadLetterQueueTask, this, process_queue, message);
@@ -203,7 +203,7 @@ void ConsumeFifoMessageService::scheduleForwardDeadLetterQueueTask(ProcessQueueW
   if (!process_queue_ptr) {
     return;
   }
-  auto consumer = consumer_weak_ptr_.lock();
+  auto consumer = consumer_.lock();
   assert(consumer);
   auto callback = std::bind(&ConsumeFifoMessageService::onForwardToDeadLetterQueue, this, process_queue, message,
                             std::placeholders::_1);
@@ -217,14 +217,14 @@ void ConsumeFifoMessageService::scheduleAckTask(ProcessQueueWeakPtr process_queu
   }
 
   auto callback = std::bind(&ConsumeFifoMessageService::onAck, this, process_queue, message, std::placeholders::_1);
-  auto consumer = consumer_weak_ptr_.lock();
+  auto consumer = consumer_.lock();
   if (consumer) {
     consumer->ack(message, callback);
   }
 }
 
 void ConsumeFifoMessageService::scheduleConsumeTask(ProcessQueueWeakPtr process_queue, MQMessageExt message) {
-  auto consumer_ptr = consumer_weak_ptr_.lock();
+  auto consumer_ptr = consumer_.lock();
   if (!consumer_ptr) {
     return;
   }
