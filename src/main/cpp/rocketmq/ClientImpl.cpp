@@ -1,4 +1,4 @@
-#include "BaseImpl.h"
+#include "ClientImpl.h"
 #include "ClientManager.h"
 #include "InvocationContext.h"
 #include "LoggerImpl.h"
@@ -13,9 +13,9 @@
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-BaseImpl::BaseImpl(std::string group_name) : ClientConfig(std::move(group_name)), state_(State::CREATED) {}
+ClientImpl::ClientImpl(std::string group_name) : ClientConfigImpl(std::move(group_name)), state_(State::CREATED) {}
 
-void BaseImpl::start() {
+void ClientImpl::start() {
   State expected = CREATED;
   if (!state_.compare_exchange_strong(expected, State::STARTING)) {
     SPDLOG_WARN("Unexpected state: {}", state_.load(std::memory_order_relaxed));
@@ -32,7 +32,7 @@ void BaseImpl::start() {
     }
   }
 
-  std::weak_ptr<BaseImpl> ptr(self());
+  std::weak_ptr<ClientImpl> ptr(self());
 
   if (update_name_server_list) {
     // Acquire name server list immediately
@@ -41,7 +41,7 @@ void BaseImpl::start() {
     // Schedule to renew name server list periodically
     SPDLOG_INFO("Name server list was empty. Schedule a task to fetch and renew periodically");
     auto name_server_update_functor = [ptr]() {
-      std::shared_ptr<BaseImpl> base = ptr.lock();
+      std::shared_ptr<ClientImpl> base = ptr.lock();
       if (base) {
         base->renewNameServerList();
       }
@@ -52,7 +52,7 @@ void BaseImpl::start() {
   }
 
   auto route_update_functor = [ptr]() {
-    std::shared_ptr<BaseImpl> base = ptr.lock();
+    std::shared_ptr<ClientImpl> base = ptr.lock();
     if (base) {
       base->updateRouteInfo();
     }
@@ -63,7 +63,7 @@ void BaseImpl::start() {
   state_.store(State::STARTED);
 }
 
-void BaseImpl::shutdown() {
+void ClientImpl::shutdown() {
   state_.store(State::STOPPING, std::memory_order_relaxed);
   if (name_server_update_handle_) {
     client_instance_->getScheduler().cancel(name_server_update_handle_);
@@ -76,10 +76,15 @@ void BaseImpl::shutdown() {
   client_instance_.reset();
 }
 
-const char* BaseImpl::UPDATE_ROUTE_TASK_NAME = "route_updater";
-const char* BaseImpl::UPDATE_NAME_SERVER_LIST_TASK_NAME = "name_server_list_updater";
+bool ClientImpl::isStopped() const {
+  State current_state = state_.load(std::memory_order_relaxed);
+  return State::STOPPED == current_state || State::STOPPING == current_state;
+}
 
-void BaseImpl::endpointsInUse(absl::flat_hash_set<std::string>& endpoints) {
+const char* ClientImpl::UPDATE_ROUTE_TASK_NAME = "route_updater";
+const char* ClientImpl::UPDATE_NAME_SERVER_LIST_TASK_NAME = "name_server_list_updater";
+
+void ClientImpl::endpointsInUse(absl::flat_hash_set<std::string>& endpoints) {
   absl::MutexLock lk(&topic_route_table_mtx_);
   for (const auto& item : topic_route_table_) {
     for (const auto& partition : item.second->partitions()) {
@@ -91,7 +96,7 @@ void BaseImpl::endpointsInUse(absl::flat_hash_set<std::string>& endpoints) {
   }
 }
 
-void BaseImpl::getRouteFor(const std::string& topic, const std::function<void(TopicRouteDataPtr)>& cb) {
+void ClientImpl::getRouteFor(const std::string& topic, const std::function<void(TopicRouteDataPtr)>& cb) {
   TopicRouteDataPtr route = nullptr;
   {
     absl::MutexLock lock(&topic_route_table_mtx_);
@@ -132,11 +137,11 @@ void BaseImpl::getRouteFor(const std::string& topic, const std::function<void(To
   if (!query_backend && route) {
     cb(route);
   } else {
-    fetchRouteFor(topic, std::bind(&BaseImpl::onTopicRouteReady, this, topic, std::placeholders::_1));
+    fetchRouteFor(topic, std::bind(&ClientImpl::onTopicRouteReady, this, topic, std::placeholders::_1));
   }
 }
 
-void BaseImpl::debugNameServerChanges(const std::vector<std::string>& list) {
+void ClientImpl::debugNameServerChanges(const std::vector<std::string>& list) {
   std::string previous;
   bool changed = false;
   {
@@ -158,7 +163,7 @@ void BaseImpl::debugNameServerChanges(const std::vector<std::string>& list) {
   }
 }
 
-void BaseImpl::renewNameServerList() {
+void ClientImpl::renewNameServerList() {
   if (State::STARTED != state_.load(std::memory_order_relaxed) &&
       State::STARTING != state_.load(std::memory_order_relaxed)) {
     SPDLOG_WARN("Unexpected client instance state: {}", state_.load(std::memory_order_relaxed));
@@ -190,7 +195,7 @@ void BaseImpl::renewNameServerList() {
   client_instance_->topAddressing().fetchNameServerAddresses(callback);
 }
 
-bool BaseImpl::selectNameServer(std::string& selected, bool change) {
+bool ClientImpl::selectNameServer(std::string& selected, bool change) {
   static uint32_t index = 0;
   if (change) {
     index++;
@@ -206,7 +211,7 @@ bool BaseImpl::selectNameServer(std::string& selected, bool change) {
   return true;
 }
 
-void BaseImpl::fetchRouteFor(const std::string& topic, const std::function<void(const TopicRouteDataPtr&)>& cb) {
+void ClientImpl::fetchRouteFor(const std::string& topic, const std::function<void(const TopicRouteDataPtr&)>& cb) {
   std::string name_server;
   if (!selectNameServer(name_server)) {
     SPDLOG_WARN("No name server available");
@@ -237,7 +242,7 @@ void BaseImpl::fetchRouteFor(const std::string& topic, const std::function<void(
   client_instance_->resolveRoute(name_server, metadata, request, absl::ToChronoMilliseconds(io_timeout_), callback);
 }
 
-void BaseImpl::updateRouteInfo() {
+void ClientImpl::updateRouteInfo() {
   if (State::STARTED != state_.load(std::memory_order_relaxed) &&
       State::STARTING != state_.load(std::memory_order_relaxed)) {
     SPDLOG_WARN("Unexpected client instance state={}.", state_.load(std::memory_order_relaxed));
@@ -254,7 +259,7 @@ void BaseImpl::updateRouteInfo() {
 
   if (!topics.empty()) {
     for (const auto& topic : topics) {
-      fetchRouteFor(topic, std::bind(&BaseImpl::updateRouteCache, this, topic, std::placeholders::_1));
+      fetchRouteFor(topic, std::bind(&ClientImpl::updateRouteCache, this, topic, std::placeholders::_1));
     }
   }
 
@@ -265,7 +270,7 @@ void BaseImpl::updateRouteInfo() {
   SPDLOG_DEBUG("Topic route info updated");
 }
 
-void BaseImpl::heartbeat() {
+void ClientImpl::heartbeat() {
   absl::flat_hash_set<std::string> hosts;
   endpointsInUse(hosts);
   if (hosts.empty()) {
@@ -295,7 +300,7 @@ void BaseImpl::heartbeat() {
   }
 }
 
-void BaseImpl::onTopicRouteReady(const std::string& topic, const TopicRouteDataPtr& route) {
+void ClientImpl::onTopicRouteReady(const std::string& topic, const TopicRouteDataPtr& route) {
   updateRouteCache(topic, route);
 
   // Take all pending callbacks
@@ -314,7 +319,7 @@ void BaseImpl::onTopicRouteReady(const std::string& topic, const TopicRouteDataP
   }
 }
 
-void BaseImpl::updateRouteCache(const std::string& topic, const TopicRouteDataPtr& route) {
+void ClientImpl::updateRouteCache(const std::string& topic, const TopicRouteDataPtr& route) {
   if (!route || route->partitions().empty()) {
     SPDLOG_WARN("Yuck! route for {} is invalid", topic);
     return;
@@ -337,14 +342,14 @@ void BaseImpl::updateRouteCache(const std::string& topic, const TopicRouteDataPt
   }
 }
 
-void BaseImpl::multiplexing(const std::string& target, const MultiplexingRequest& request) {
+void ClientImpl::multiplexing(const std::string& target, const MultiplexingRequest& request) {
   absl::flat_hash_map<std::string, std::string> metadata;
   Signature::sign(this, metadata);
   client_instance_->multiplexingCall(target, metadata, request, absl::ToChronoMilliseconds(long_polling_timeout_),
-                                     std::bind(&BaseImpl::onMultiplexingResponse, this, std::placeholders::_1));
+                                     std::bind(&ClientImpl::onMultiplexingResponse, this, std::placeholders::_1));
 }
 
-void BaseImpl::onMultiplexingResponse(const InvocationContext<MultiplexingResponse>* ctx) {
+void ClientImpl::onMultiplexingResponse(const InvocationContext<MultiplexingResponse>* ctx) {
   if (!ctx->status.ok()) {
     std::string remote_address = ctx->remote_address;
     auto multiplexingLater = [this, remote_address]() {
@@ -368,7 +373,7 @@ void BaseImpl::onMultiplexingResponse(const InvocationContext<MultiplexingRespon
     absl::flat_hash_map<std::string, std::string> metadata;
     Signature::sign(this, metadata);
     client_instance_->multiplexingCall(ctx->remote_address, metadata, request, absl::ToChronoMilliseconds(io_timeout_),
-                                       std::bind(&BaseImpl::onMultiplexingResponse, this, std::placeholders::_1));
+                                       std::bind(&ClientImpl::onMultiplexingResponse, this, std::placeholders::_1));
     break;
   }
 
@@ -427,7 +432,7 @@ void BaseImpl::onMultiplexingResponse(const InvocationContext<MultiplexingRespon
   }
 }
 
-void BaseImpl::healthCheck() {
+void ClientImpl::healthCheck() {
   std::vector<std::string> endpoints;
   {
     absl::MutexLock lk(&isolated_endpoints_mtx_);
@@ -436,10 +441,10 @@ void BaseImpl::healthCheck() {
     }
   }
 
-  std::weak_ptr<BaseImpl> base(self());
+  std::weak_ptr<ClientImpl> base(self());
   auto callback = [base](const std::string& endpoint,
                          const InvocationContext<HealthCheckResponse>* invocation_context) {
-    std::shared_ptr<BaseImpl> ptr = base.lock();
+    std::shared_ptr<ClientImpl> ptr = base.lock();
     if (ptr) {
       ptr->onHealthCheckResponse(endpoint, invocation_context);
     } else {
@@ -455,11 +460,12 @@ void BaseImpl::healthCheck() {
   }
 }
 
-void BaseImpl::schedule(const std::string& task_name, const std::function<void()>& task, std::chrono::milliseconds delay) {
+void ClientImpl::schedule(const std::string& task_name, const std::function<void()>& task,
+                          std::chrono::milliseconds delay) {
   client_instance_->getScheduler().schedule(task, task_name, delay, std::chrono::milliseconds(0));
 }
 
-void BaseImpl::onHealthCheckResponse(const std::string& endpoint, const InvocationContext<HealthCheckResponse>* ctx) {
+void ClientImpl::onHealthCheckResponse(const std::string& endpoint, const InvocationContext<HealthCheckResponse>* ctx) {
   if (!ctx) {
     SPDLOG_WARN("ClientInstance does not have RPC client for {}. It might have been offline and thus cleaned",
                 endpoint);
@@ -487,7 +493,7 @@ void BaseImpl::onHealthCheckResponse(const std::string& endpoint, const Invocati
   }
 }
 
-void BaseImpl::fillGenericPollingRequest(MultiplexingRequest& request) {
+void ClientImpl::fillGenericPollingRequest(MultiplexingRequest& request) {
   auto&& resource_bundle = resourceBundle();
   auto protocol_bundle = request.mutable_polling_request()->mutable_client_resource_bundle();
   protocol_bundle->set_client_id(resource_bundle.client_id);

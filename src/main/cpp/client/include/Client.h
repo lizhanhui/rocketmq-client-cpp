@@ -1,11 +1,14 @@
+#pragma once
+
+#include "ClientConfig.h"
 #include "absl/container/flat_hash_set.h"
-#include "rocketmq/RocketMQ.h"
+#include <functional>
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-class ClientCallback {
+class Client : virtual public ClientConfig {
 public:
-  virtual ~ClientCallback() = default;
+  ~Client() override = default;
 
   virtual void endpointsInUse(absl::flat_hash_set<std::string>& endpoints) = 0;
 
@@ -19,6 +22,10 @@ public:
    * workload.
    */
   virtual void healthCheck() = 0;
-};
 
+  virtual void schedule(const std::string& task_name, const std::function<void(void)>& task,
+                        std::chrono::milliseconds delay) = 0;
+
+  virtual bool isStopped() const = 0;
+};
 ROCKETMQ_NAMESPACE_END

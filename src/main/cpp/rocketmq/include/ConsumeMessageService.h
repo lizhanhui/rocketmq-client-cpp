@@ -4,20 +4,19 @@
 #include <mutex>
 #include <string>
 
-#include "ProcessQueue.h"
 #include "RateLimiter.h"
 #include "rocketmq/MessageListener.h"
+#include "ProcessQueue.h"
 #include "rocketmq/State.h"
 #include "src/cpp/server/dynamic_thread_pool.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-class DefaultMQPushConsumerImpl;
+class PushConsumer;
 
 class ConsumeMessageService {
 public:
-  ConsumeMessageService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer, int thread_count,
-                        MessageListener* message_listener);
+  ConsumeMessageService(std::weak_ptr<PushConsumer> consumer, int thread_count, MessageListener* message_listener);
 
   virtual ~ConsumeMessageService() = default;
 
@@ -70,7 +69,7 @@ protected:
 
   int thread_count_;
   std::unique_ptr<grpc::ThreadPoolInterface> pool_;
-  std::weak_ptr<DefaultMQPushConsumerImpl> consumer_weak_ptr_;
+  std::weak_ptr<PushConsumer> consumer_weak_ptr_;
 
   absl::Mutex dispatch_mtx_;
   std::thread dispatch_thread_;
@@ -86,7 +85,7 @@ protected:
 
 class ConsumeStandardMessageService : public ConsumeMessageService {
 public:
-  ConsumeStandardMessageService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer, int thread_count,
+  ConsumeStandardMessageService(std::weak_ptr<PushConsumer> consumer, int thread_count,
                                 MessageListener* message_listener_ptr);
 
   ~ConsumeStandardMessageService() override = default;
@@ -106,7 +105,7 @@ private:
 class ConsumeFifoMessageService : public ConsumeMessageService,
                                   public std::enable_shared_from_this<ConsumeFifoMessageService> {
 public:
-  ConsumeFifoMessageService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer_impl_ptr, int thread_count,
+  ConsumeFifoMessageService(std::weak_ptr<PushConsumer> consumer_impl_ptr, int thread_count,
                             MessageListener* message_listener_ptr);
   void start() override;
 
@@ -119,11 +118,11 @@ public:
 private:
   void consumeTask(const ProcessQueueWeakPtr& process_queue, MQMessageExt message);
 
-  void submitConsumeTask0(const std::shared_ptr<DefaultMQPushConsumerImpl>& consumer, ProcessQueueWeakPtr process_queue,
+  void submitConsumeTask0(const std::shared_ptr<PushConsumer>& consumer, ProcessQueueWeakPtr process_queue,
                           MQMessageExt message);
 
   void scheduleAckTask(ProcessQueueWeakPtr process_queue, MQMessageExt message);
-  
+
   void onAck(const ProcessQueueWeakPtr& process_queue, MQMessageExt message, bool ok);
 
   void scheduleConsumeTask(ProcessQueueWeakPtr process_queue, MQMessageExt message);
@@ -131,7 +130,6 @@ private:
   void onForwardToDeadLetterQueue(ProcessQueueWeakPtr process_queue, MQMessageExt message, bool ok);
 
   void scheduleForwardDeadLetterQueueTask(ProcessQueueWeakPtr process_queue, MQMessageExt message);
-
 };
 
 ROCKETMQ_NAMESPACE_END

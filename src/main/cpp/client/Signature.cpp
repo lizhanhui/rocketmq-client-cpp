@@ -1,4 +1,5 @@
 #include "Signature.h"
+#include "ClientConfigImpl.h"
 #include "Metadata.h"
 #include "Protocol.h"
 #include "TlsHelper.h"
@@ -11,7 +12,7 @@ void Signature::sign(ClientConfig* client, absl::flat_hash_map<std::string, std:
 
   metadata.insert({Metadata::LANGUAGE_KEY, "CPP"});
   // Add common headers
-  metadata.insert({Metadata::CLIENT_VERSION_KEY, ClientConfig::CLIENT_VERSION});
+  metadata.insert({Metadata::CLIENT_VERSION_KEY, ClientConfigImpl::CLIENT_VERSION});
   metadata.insert({Metadata::PROTOCOL_VERSION_KEY, Protocol::PROTOCOL_VERSION});
 
   if (!client->tenantId().empty()) {

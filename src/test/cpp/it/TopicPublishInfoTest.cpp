@@ -1,12 +1,12 @@
 #include "TopicPublishInfo.h"
-#include "IdentifiableMock.h"
 #include "LogInterceptorFactory.h"
 #include "RpcClient.h"
 #include "Signature.h"
 #include "TlsHelper.h"
 #include "rocketmq/MQMessageQueue.h"
+#include "ClientConfigImpl.h"
 #include "gtest/gtest.h"
-#include <grpcpp/security/tls_credentials_options.h>
+#include "grpcpp/security/tls_credentials_options.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -37,10 +37,9 @@ protected:
     if (!name_server_list.empty()) {
       target_ = *name_server_list.begin();
     }
-    credentials_observable_ = std::make_shared<IdentifiableMock>();
     std::vector<std::unique_ptr<grpc::experimental::ClientInterceptorFactoryInterface>> interceptor_factories;
-    ON_CALL(*credentials_observable_, tenantId).WillByDefault(testing::ReturnRef(tenant_id_));
-    ON_CALL(*credentials_observable_, credentialsProvider).WillByDefault(testing::Return(credentials_provider_));
+    client_config_.tenantId(tenant_id_);
+    client_config_.setCredentialsProvider(credentials_provider_);
     interceptor_factories.emplace_back(absl::make_unique<LogInterceptorFactory>());
     auto channel = grpc::experimental::CreateCustomChannelWithInterceptors(
         target_, channel_credential_, channel_arguments_, std::move(interceptor_factories));
@@ -62,7 +61,7 @@ protected:
   std::string region_id_{"cn-hangzhou"};
   std::string service_name_{"MQ"};
   std::string target_{"dns:grpc.dev:9876"};
-  ClientConfig client_config_;
+  ClientConfigImpl client_config_;
   absl::flat_hash_map<std::string, std::string> metadata_;
   std::shared_ptr<grpc::CompletionQueue> completion_queue_;
   std::shared_ptr<rocketmq::RpcClientImpl> client_;
@@ -72,7 +71,6 @@ protected:
   std::shared_ptr<grpc::experimental::TlsServerAuthorizationCheckConfig> server_authorization_check_config_;
   std::shared_ptr<grpc::ChannelCredentials> channel_credential_;
   grpc::ChannelArguments channel_arguments_;
-  std::shared_ptr<IdentifiableMock> credentials_observable_;
 };
 
 TEST_F(TopicPublishInfoTest, testTopicPublishInfo) {

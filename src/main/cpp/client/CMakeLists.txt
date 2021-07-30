@@ -1,8 +1,7 @@
 add_library(client_obj OBJECT)
 target_sources(client_obj
         PRIVATE
-            ClientApi.cpp
-            ClientConfig.cpp
+            ClientConfigImpl.cpp
             ClientInstance.cpp
             ClientManager.cpp
             LogInterceptorFactory.cpp

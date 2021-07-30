@@ -11,12 +11,12 @@
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-DefaultMQPushConsumerImpl::DefaultMQPushConsumerImpl(std::string group_name) : BaseImpl(std::move(group_name)) {}
+DefaultMQPushConsumerImpl::DefaultMQPushConsumerImpl(std::string group_name) : ClientImpl(std::move(group_name)) {}
 
 DefaultMQPushConsumerImpl::~DefaultMQPushConsumerImpl() { SPDLOG_DEBUG("DefaultMQPushConsumerImpl is destructed"); }
 
 void DefaultMQPushConsumerImpl::start() {
-  BaseImpl::start();
+  ClientImpl::start();
 
   if (State::STARTED != state_.load(std::memory_order_relaxed)) {
     SPDLOG_WARN("Unexpected consumer state: {}", state_.load(std::memory_order_relaxed));
@@ -87,16 +87,11 @@ void DefaultMQPushConsumerImpl::shutdown() {
   }
 
   // Shutdown services started by parent
-  BaseImpl::shutdown();
+  ClientImpl::shutdown();
   State expected = State::STOPPING;
   if (state_.compare_exchange_strong(expected, State::STOPPED)) {
     SPDLOG_INFO("DefaultMQPushConsumerImpl stopped");
   }
-}
-
-bool DefaultMQPushConsumerImpl::isStopped() const {
-  State current_state = state_.load(std::memory_order_relaxed);
-  return State::STOPPED == current_state || State::STOPPING == current_state;
 }
 
 void DefaultMQPushConsumerImpl::subscribe(const std::string& topic, const std::string& expression,
@@ -111,7 +106,7 @@ void DefaultMQPushConsumerImpl::unsubscribe(const std::string& topic) {
   topic_filter_expression_table_.erase(topic);
 }
 
-absl::flat_hash_map<std::string, FilterExpression> DefaultMQPushConsumerImpl::getTopicFilterExpressionTable() {
+absl::flat_hash_map<std::string, FilterExpression> DefaultMQPushConsumerImpl::getTopicFilterExpressionTable() const {
   absl::flat_hash_map<std::string, FilterExpression> topic_filter_expression_table;
   {
     absl::MutexLock lock(&topic_filter_expression_table_mtx_);
@@ -572,7 +567,7 @@ void DefaultMQPushConsumerImpl::prepareHeartbeatData(HeartbeatRequest& request) 
 }
 
 ClientResourceBundle DefaultMQPushConsumerImpl::resourceBundle() {
-  ClientResourceBundle resource_bundle = BaseImpl::resourceBundle();
+  ClientResourceBundle resource_bundle = ClientImpl::resourceBundle();
   {
     absl::MutexLock lk(&topic_filter_expression_table_mtx_);
     for (auto& item : topic_filter_expression_table_) {

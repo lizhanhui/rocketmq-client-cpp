@@ -1,7 +1,7 @@
 #include "ConsumeMessageService.h"
-#include "DefaultMQPushConsumerImpl.h"
 #include "LoggerImpl.h"
 #include "Protocol.h"
+#include "PushConsumer.h"
 #include "TracingUtility.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_join.h"
@@ -9,7 +9,7 @@
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-ConsumeStandardMessageService::ConsumeStandardMessageService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer,
+ConsumeStandardMessageService::ConsumeStandardMessageService(std::weak_ptr<PushConsumer> consumer,
                                                              int thread_count, MessageListener* message_listener_ptr)
     : ConsumeMessageService(std::move(consumer), thread_count, message_listener_ptr) {}
 
@@ -39,7 +39,7 @@ void ConsumeStandardMessageService::submitConsumeTask(const ProcessQueueWeakPtr&
     SPDLOG_WARN("ProcessQueue was destructed. It is likely that client should have shutdown.");
     return;
   }
-  std::shared_ptr<DefaultMQPushConsumerImpl> consumer_impl_ptr = process_queue_ptr->getConsumer().lock();
+  std::shared_ptr<PushConsumer> consumer_impl_ptr = process_queue_ptr->getConsumer().lock();
 
   if (!consumer_impl_ptr) {
     return;
@@ -84,7 +84,7 @@ void ConsumeStandardMessageService::consumeTask(const ProcessQueueWeakPtr& proce
   }
   std::string topic = msgs.begin()->getTopic();
   ConsumeMessageResult status;
-  std::shared_ptr<DefaultMQPushConsumerImpl> consumer = consumer_weak_ptr_.lock();
+  std::shared_ptr<PushConsumer> consumer = consumer_weak_ptr_.lock();
   // consumer might have been destructed.
   if (!consumer) {
     return;
@@ -186,11 +186,9 @@ void ConsumeStandardMessageService::consumeTask(const ProcessQueueWeakPtr& proce
     }
 
   } else if (MessageModel::BROADCASTING == consumer->messageModel()) {
-    if (consumer->offset_store_) {
-      int64_t committed_offset;
-      if (process_queue_ptr->committedOffset(committed_offset)) {
-        consumer->offset_store_->updateOffset(process_queue_ptr->getMQMessageQueue(), committed_offset);
-      }
+    int64_t committed_offset;
+    if (process_queue_ptr->committedOffset(committed_offset)) {
+      consumer->updateOffset(process_queue_ptr->getMQMessageQueue(), committed_offset);
     }
   }
 }

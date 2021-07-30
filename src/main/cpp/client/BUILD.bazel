@@ -31,7 +31,7 @@ cc_library(
     name = "rpc_client_mock",
     hdrs = [
         "mocks/include/RpcClientMock.h",
-        "mocks/include/IdentifiableMock.h",
+        "mocks/include/ClientConfigMock.h",
     ],
     srcs = [
         "mocks/RpcClientMock.cpp",

@@ -4,7 +4,7 @@ target_sources(rocketmq_obj
             AsyncReceiveMessageCallback.cpp
             SendCallbacks.cpp
             AwaitPullCallback.cpp
-            BaseImpl.cpp
+            ClientImpl.cpp
             ConsumeMessageService.cpp
             ConsumeStandardMessageService.cpp
             ConsumeFifoMessageService.cpp

@@ -8,7 +8,7 @@
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-ConsumeFifoMessageService ::ConsumeFifoMessageService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer_impl_ptr,
+ConsumeFifoMessageService ::ConsumeFifoMessageService(std::weak_ptr<PushConsumer> consumer_impl_ptr,
                                                       int thread_count, MessageListener* message_listener_ptr)
     : ConsumeMessageService(std::move(consumer_impl_ptr), thread_count, message_listener_ptr) {}
 
@@ -34,7 +34,7 @@ void ConsumeFifoMessageService::shutdown() {
   }
 }
 
-void ConsumeFifoMessageService::submitConsumeTask0(const std::shared_ptr<DefaultMQPushConsumerImpl>& consumer,
+void ConsumeFifoMessageService::submitConsumeTask0(const std::shared_ptr<PushConsumer>& consumer,
                                                    ProcessQueueWeakPtr process_queue, MQMessageExt message) {
   // In case custom executor is used.
   const Executor& custom_executor = consumer->customExecutor();
@@ -86,7 +86,7 @@ void ConsumeFifoMessageService::consumeTask(const ProcessQueueWeakPtr& process_q
   }
   const std::string& topic = message.getTopic();
   ConsumeMessageResult result;
-  std::shared_ptr<DefaultMQPushConsumerImpl> consumer = consumer_weak_ptr_.lock();
+  std::shared_ptr<PushConsumer> consumer = consumer_weak_ptr_.lock();
   // consumer might have been destructed.
   if (!consumer) {
     return;
@@ -126,7 +126,7 @@ void ConsumeFifoMessageService::consumeTask(const ProcessQueueWeakPtr& process_q
       consumer->ack(message, callback);
     } else {
       MessageAccessor::setDeliveryAttempt(message, message.getDeliveryAttempt() + 1);
-      if (message.getDeliveryAttempt() < consumer->max_delivery_attempts_) {
+      if (message.getDeliveryAttempt() < consumer->maxDeliveryAttempts()) {
         auto task = std::bind(&ConsumeFifoMessageService::scheduleConsumeTask, this, process_queue, message);
         consumer->schedule("Scheduled-Consume-FIFO-Message-Task", task, std::chrono::seconds(1));
       } else {
@@ -137,11 +137,9 @@ void ConsumeFifoMessageService::consumeTask(const ProcessQueueWeakPtr& process_q
     }
   } else if (MessageModel::BROADCASTING == consumer->messageModel()) {
     process_queue_ptr->release(message.getBody().size(), message.getQueueOffset());
-    if (consumer->offset_store_) {
-      int64_t committed_offset;
-      if (process_queue_ptr->committedOffset(committed_offset)) {
-        consumer->offset_store_->updateOffset(process_queue_ptr->getMQMessageQueue(), committed_offset);
-      }
+    int64_t committed_offset;
+    if (process_queue_ptr->committedOffset(committed_offset)) {
+      consumer->updateOffset(process_queue_ptr->getMQMessageQueue(), committed_offset);
     }
   }
 }

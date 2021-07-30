@@ -1,6 +1,6 @@
 #include "ProcessQueue.h"
 #include "ClientInstance.h"
-#include "DefaultMQPushConsumerImpl.h"
+#include "PushConsumer.h"
 #include "Metadata.h"
 #include "Protocol.h"
 #include "Signature.h"
@@ -14,7 +14,7 @@ using namespace std::chrono;
 ROCKETMQ_NAMESPACE_BEGIN
 
 ProcessQueue::ProcessQueue(MQMessageQueue message_queue, FilterExpression filter_expression,
-                           ConsumeMessageType consume_type, std::weak_ptr<DefaultMQPushConsumerImpl> consumer,
+                           ConsumeMessageType consume_type, std::weak_ptr<PushConsumer> consumer,
                            std::shared_ptr<ClientInstance> client_instance)
     : message_queue_(std::move(message_queue)), filter_expression_(std::move(filter_expression)),
       consume_type_(consume_type), invisible_time_(MixAll::millisecondsOf(MixAll::DEFAULT_INVISIBLE_TIME_)),
@@ -139,7 +139,7 @@ void ProcessQueue::cacheMessages(const std::vector<MQMessageExt>& messages) {
       cached_messages_.emplace_back(message);
       cached_message_quantity_.fetch_add(1, std::memory_order_relaxed);
       cached_message_memory_.fetch_add(message.getBody().size(), std::memory_order_relaxed);
-      if (MessageModel::BROADCASTING == consumer->messageModel() && consumer->hasCustomOffsetStore()) {
+      if (MessageModel::BROADCASTING == consumer->messageModel()) {
         if (offsets_.size() == 1 && offsets_.begin()->released_) {
           int64_t previously_released = offsets_.begin()->offset_;
           offsets_.erase(OffsetRecord(previously_released));
@@ -185,7 +185,7 @@ void ProcessQueue::release(uint64_t body_size, int64_t offset) {
   cached_message_quantity_.fetch_sub(1);
   cached_message_memory_.fetch_sub(body_size);
 
-  if (MessageModel::BROADCASTING == consumer->messageModel() && consumer->hasCustomOffsetStore()) {
+  if (MessageModel::BROADCASTING == consumer->messageModel()) {
     absl::MutexLock lk(&offsets_mtx_);
     if (offsets_.size() > 1) {
       offsets_.erase(OffsetRecord(offset));
@@ -199,7 +199,7 @@ void ProcessQueue::release(uint64_t body_size, int64_t offset) {
 
 void ProcessQueue::wrapPopMessageRequest(absl::flat_hash_map<std::string, std::string>& metadata,
                                          rmq::ReceiveMessageRequest& request) {
-  std::shared_ptr<DefaultMQPushConsumerImpl> consumer = consumer_.lock();
+  std::shared_ptr<PushConsumer> consumer = consumer_.lock();
   assert(consumer);
   request.set_client_id(consumer->clientId());
   request.mutable_group()->set_name(consumer->getGroupName());
@@ -242,7 +242,7 @@ void ProcessQueue::wrapPopMessageRequest(absl::flat_hash_map<std::string, std::s
 
 void ProcessQueue::wrapPullMessageRequest(absl::flat_hash_map<std::string, std::string>& metadata,
                                           rmq::PullMessageRequest& request) {
-  std::shared_ptr<DefaultMQPushConsumerImpl> consumer = consumer_.lock();
+  std::shared_ptr<PushConsumer> consumer = consumer_.lock();
   assert(consumer);
   request.set_client_id(consumer->clientId());
   request.mutable_group()->set_name(consumer->getGroupName());
@@ -272,7 +272,7 @@ void ProcessQueue::wrapPullMessageRequest(absl::flat_hash_map<std::string, std::
   }
 }
 
-std::weak_ptr<DefaultMQPushConsumerImpl> ProcessQueue::getConsumer() { return consumer_; }
+std::weak_ptr<PushConsumer> ProcessQueue::getConsumer() { return consumer_; }
 
 std::shared_ptr<ClientInstance> ProcessQueue::getClientInstance() { return client_instance_; }
 

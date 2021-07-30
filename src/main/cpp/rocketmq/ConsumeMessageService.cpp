@@ -1,9 +1,9 @@
 #include "ConsumeMessageService.h"
-#include "DefaultMQPushConsumerImpl.h"
+#include "PushConsumer.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-ConsumeMessageService::ConsumeMessageService(std::weak_ptr<DefaultMQPushConsumerImpl> consumer, int thread_count,
+ConsumeMessageService::ConsumeMessageService(std::weak_ptr<PushConsumer> consumer, int thread_count,
                                              MessageListener* message_listener)
     : state_(State::CREATED), thread_count_(thread_count),
       pool_(absl::make_unique<grpc::DynamicThreadPool>(thread_count_)), consumer_weak_ptr_(std::move(consumer)),
@@ -71,7 +71,7 @@ std::shared_ptr<RateLimiter<10>> ConsumeMessageService::rateLimiter(const std::s
 }
 
 void ConsumeMessageService::dispatch() {
-  std::shared_ptr<DefaultMQPushConsumerImpl> consumer = consumer_weak_ptr_.lock();
+  std::shared_ptr<PushConsumer> consumer = consumer_weak_ptr_.lock();
   if (!consumer) {
     SPDLOG_WARN("The consumer has already destructed");
     return;

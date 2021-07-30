@@ -8,11 +8,9 @@
 #include <string>
 #include <vector>
 
-#include "ClientCallback.h"
-#include "ClientConfig.h"
+#include "Client.h"
 #include "HeartbeatDataCallback.h"
 #include "Histogram.h"
-#include "Identifiable.h"
 #include "InvocationContext.h"
 #include "OrphanTransactionCallback.h"
 #include "ReceiveMessageCallback.h"
@@ -108,7 +106,7 @@ public:
   // Test purpose only
   void cleanRpcClients() LOCKS_EXCLUDED(rpc_clients_mtx_);
 
-  void addClientObserver(std::weak_ptr<ClientCallback> client);
+  void addClientObserver(std::weak_ptr<Client> client);
 
   void queryAssignment(const std::string& target, const absl::flat_hash_map<std::string, std::string>& metadata,
                        const QueryAssignmentRequest& request, std::chrono::milliseconds timeout,
@@ -251,7 +249,7 @@ private:
 
   std::atomic<State> state_;
 
-  std::vector<std::weak_ptr<ClientCallback>> clients_ GUARDED_BY(clients_mtx_);
+  std::vector<std::weak_ptr<Client>> clients_ GUARDED_BY(clients_mtx_);
   absl::Mutex clients_mtx_;
 
   absl::flat_hash_map<std::string, std::shared_ptr<RpcClient>> rpc_clients_ GUARDED_BY(rpc_clients_mtx_);

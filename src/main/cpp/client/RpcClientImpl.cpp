@@ -2,7 +2,7 @@
 
 #include <chrono>
 
-#include "ClientConfig.h"
+#include "ClientConfigImpl.h"
 #include "TlsHelper.h"
 #include "absl/time/time.h"
 

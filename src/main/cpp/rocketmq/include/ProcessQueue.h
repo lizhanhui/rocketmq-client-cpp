@@ -43,7 +43,7 @@ template <> struct less<ROCKETMQ_NAMESPACE::OffsetRecord> {
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-class DefaultMQPushConsumerImpl;
+class PushConsumer;
 
 /**
  * @brief Once messages are fetched(either pulled or popped) from remote server, they are firstly put into cache.
@@ -54,7 +54,7 @@ class DefaultMQPushConsumerImpl;
 class ProcessQueue {
 public:
   ProcessQueue(MQMessageQueue message_queue, FilterExpression filter_expression, ConsumeMessageType consume_type,
-               std::weak_ptr<DefaultMQPushConsumerImpl> consumer, std::shared_ptr<ClientInstance> client_instance);
+               std::weak_ptr<PushConsumer> consumer, std::shared_ptr<ClientInstance> client_instance);
 
   ~ProcessQueue();
 
@@ -68,7 +68,7 @@ public:
 
   const FilterExpression& getFilterExpression() const;
 
-  std::weak_ptr<DefaultMQPushConsumerImpl> getConsumer();
+  std::weak_ptr<PushConsumer> getConsumer();
 
   std::shared_ptr<ClientInstance> getClientInstance();
 
@@ -155,7 +155,7 @@ private:
 
   std::string simple_name_;
 
-  std::weak_ptr<DefaultMQPushConsumerImpl> consumer_;
+  std::weak_ptr<PushConsumer> consumer_;
   std::shared_ptr<ClientInstance> client_instance_;
 
   std::shared_ptr<ReceiveMessageCallback> receive_callback_;

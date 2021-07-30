@@ -5,7 +5,7 @@
 ROCKETMQ_NAMESPACE_BEGIN
 
 void DefaultMQPullConsumerImpl::start() {
-  BaseImpl::start();
+  ClientImpl::start();
   if (State::STARTED != state_.load(std::memory_order_relaxed)) {
     SPDLOG_WARN("Unexpected state: {}", state_.load(std::memory_order_relaxed));
     return;
@@ -17,7 +17,7 @@ void DefaultMQPullConsumerImpl::shutdown() {
   // Shutdown services started by current tier
 
   // Shutdown services that are started by the parent
-  BaseImpl::shutdown();
+  ClientImpl::shutdown();
   State expected = State::STOPPING;
   if (state_.compare_exchange_strong(expected, State::STOPPED)) {
     SPDLOG_INFO("DefaultMQPullConsumerImpl stopped");

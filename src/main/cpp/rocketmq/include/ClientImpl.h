@@ -1,3 +1,5 @@
+#include "Client.h"
+#include "ClientConfigImpl.h"
 #include "ClientInstance.h"
 #include "ClientResourceBundle.h"
 #include "InvocationContext.h"
@@ -7,15 +9,18 @@
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-class BaseImpl : public ClientConfig, public ClientCallback {
+class ClientImpl : virtual public Client,
+                   virtual public ClientConfigImpl {
 public:
-  explicit BaseImpl(std::string group_name);
+  explicit ClientImpl(std::string group_name);
 
-  ~BaseImpl() override = default;
+  ~ClientImpl() override = default;
 
   virtual void start();
 
   virtual void shutdown();
+
+  bool isStopped() const override;
 
   void getRouteFor(const std::string& topic, const std::function<void(TopicRouteDataPtr)>& cb)
       LOCKS_EXCLUDED(inflight_route_requests_mtx_, topic_route_table_mtx_);
@@ -41,8 +46,8 @@ public:
 
   void healthCheck() LOCKS_EXCLUDED(isolated_endpoints_mtx_) override;
 
-
-  void schedule(const std::string &task_name, const std::function<void(void)>& task, std::chrono::milliseconds delay);
+  void schedule(const std::string& task_name, const std::function<void(void)>& task,
+                std::chrono::milliseconds delay) override;
 
 protected:
   ClientInstancePtr client_instance_;
@@ -81,7 +86,7 @@ protected:
   /**
    * Sub-class is supposed to inherit from std::enable_shared_from_this.
    */
-  virtual std::shared_ptr<BaseImpl> self() = 0;
+  virtual std::shared_ptr<ClientImpl> self() = 0;
 
   virtual void prepareHeartbeatData(HeartbeatRequest& request) = 0;
 

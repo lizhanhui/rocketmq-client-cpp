@@ -186,7 +186,7 @@ void ClientInstance::doHealthCheck() {
 
   cleanOfflineRpcClients();
 
-  std::vector<std::shared_ptr<ClientCallback>> clients;
+  std::vector<std::shared_ptr<Client>> clients;
   {
     absl::MutexLock lk(&clients_mtx_);
     for (auto& item : clients_) {
@@ -281,7 +281,7 @@ void ClientInstance::cleanOfflineRpcClients() {
   {
     absl::MutexLock lk(&clients_mtx_);
     for (const auto& item : clients_) {
-      std::shared_ptr<ClientCallback> client = item.lock();
+      std::shared_ptr<Client> client = item.lock();
       if (!client) {
         continue;
       }
@@ -352,7 +352,7 @@ void ClientInstance::doHeartbeat() {
     return;
   }
 
-  std::vector<std::shared_ptr<ClientCallback>> clients;
+  std::vector<std::shared_ptr<Client>> clients;
   {
     absl::MutexLock lk(&clients_mtx_);
     for (const auto& item : clients_) {
@@ -537,7 +537,7 @@ SendResult ClientInstance::processSendResponse(const MQMessageQueue& message_que
   return send_result;
 }
 
-void ClientInstance::addClientObserver(std::weak_ptr<ClientCallback> client) {
+void ClientInstance::addClientObserver(std::weak_ptr<Client> client) {
   absl::MutexLock lk(&clients_mtx_);
   clients_.emplace_back(std::move(client));
 }
