@@ -28,26 +28,9 @@ cc_library(
 )
 
 cc_library(
-    name = "rpc_client_mock",
-    hdrs = [
-        "mocks/include/RpcClientMock.h",
-        "mocks/include/ClientConfigMock.h",
-    ],
-    srcs = [
-        "mocks/RpcClientMock.cpp",
-    ],
-    strip_include_prefix = "//src/main/cpp/client/mocks/include",
-    deps = [
-        ":client_library",
-        "//external:gtest",
-    ],
-)
-
-cc_library(
-    name = "receive_message_callback_mock",
-    hdrs = [
-        "mocks/include/ReceiveMessageCallbackMock.h",
-    ],
+    name = "client_mocks",
+    hdrs = glob(["mocks/include/*.h"]),
+    srcs = glob(["mocks/*.cpp"]),
     strip_include_prefix = "//src/main/cpp/client/mocks/include",
     deps = [
         ":client_library",
