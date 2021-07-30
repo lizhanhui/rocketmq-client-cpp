@@ -29,8 +29,9 @@ protected:
   testing::NiceMock<StandardMessageListenerMock> message_listener_;
 };
 
-TEST_F(ConsumeStandardMessageServiceTest, testStart) {
+TEST_F(ConsumeStandardMessageServiceTest, testStartAndShutdown) {
   consume_standard_message_service_->start();
+  consume_standard_message_service_->shutdown();
 }
 
 ROCKETMQ_NAMESPACE_END

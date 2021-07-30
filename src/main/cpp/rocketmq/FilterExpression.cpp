@@ -18,6 +18,7 @@ bool FilterExpression::accept(const MQMessageExt& message) const {
     return true;
   }
   }
+  return true;
 }
 
 const char* FilterExpression::WILD_CARD_TAG = "*";
