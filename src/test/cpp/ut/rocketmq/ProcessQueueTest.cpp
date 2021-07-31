@@ -1,6 +1,7 @@
 #include "Assignment.h"
 #include "ClientInstance.h"
 #include "ClientManager.h"
+#include "ConsumeMessageType.h"
 #include "InvocationContext.h"
 #include "MessageAccessor.h"
 #include "ProcessQueueImpl.h"
@@ -186,6 +187,80 @@ TEST_F(ProcessQueueTest, testTake2) {
   EXPECT_EQ(tag_, msgs.begin()->getTags());
   EXPECT_EQ(topic_, msgs.begin()->getTopic());
   EXPECT_EQ(threshold_quantity_ - consume_batch_size_, process_queue_->cachedMessagesSize());
+}
+
+TEST_F(ProcessQueueTest, testRelease) {
+  EXPECT_CALL(*consumer_, messageModel)
+      .Times(testing::AtLeast(1))
+      .WillRepeatedly(testing::Return(MessageModel::BROADCASTING));
+
+  int64_t offset;
+  EXPECT_FALSE(process_queue_->committedOffset(offset));
+
+  size_t body_length = 1024;
+  {
+    std::vector<MQMessageExt> messages;
+    for (size_t i = 0; i < threshold_quantity_; i++) {
+      MQMessageExt message;
+      message.setTopic(topic_);
+      message.setTags(tag_);
+      MessageAccessor::setQueueId(message, 0);
+      MessageAccessor::setQueueOffset(message, i);
+      message.setBody(std::string(body_length, 'c'));
+      messages.emplace_back(message);
+    }
+    process_queue_->cacheMessages(messages);
+    EXPECT_EQ(threshold_quantity_, process_queue_->cachedMessagesSize());
+  }
+
+  std::vector<MQMessageExt> msgs;
+  process_queue_->take(1, msgs);
+
+  EXPECT_TRUE(process_queue_->committedOffset(offset));
+  EXPECT_EQ(0, offset);
+
+  process_queue_->release(body_length, 0);
+
+  EXPECT_TRUE(process_queue_->committedOffset(offset));
+  EXPECT_EQ(1, offset);
+}
+
+TEST_F(ProcessQueueTest, testOffset) {
+  EXPECT_CALL(*consumer_, messageModel)
+      .Times(testing::AtLeast(1))
+      .WillRepeatedly(testing::Return(MessageModel::BROADCASTING));
+
+  int64_t offset;
+  EXPECT_FALSE(process_queue_->committedOffset(offset));
+
+  size_t body_length = 1024;
+  {
+    std::vector<MQMessageExt> messages;
+    for (size_t i = 0; i < threshold_quantity_; i++) {
+      MQMessageExt message;
+      message.setTopic(topic_);
+      message.setTags(tag_);
+      MessageAccessor::setQueueId(message, 0);
+      MessageAccessor::setQueueOffset(message, i);
+      message.setBody(std::string(body_length, 'c'));
+      messages.emplace_back(message);
+    }
+    process_queue_->cacheMessages(messages);
+    EXPECT_EQ(threshold_quantity_, process_queue_->cachedMessagesSize());
+  }
+
+  std::vector<MQMessageExt> msgs;
+  process_queue_->take(threshold_quantity_, msgs);
+
+  EXPECT_TRUE(process_queue_->committedOffset(offset));
+  EXPECT_EQ(0, offset);
+
+  for (size_t i = 0; i < threshold_quantity_; i++) {
+    process_queue_->release(body_length, i);
+  }
+
+  EXPECT_TRUE(process_queue_->committedOffset(offset));
+  EXPECT_EQ(threshold_quantity_, offset);
 }
 
 ROCKETMQ_NAMESPACE_END
