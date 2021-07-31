@@ -4,7 +4,7 @@
 #include "ClientManager.h"
 #include "MessageAccessor.h"
 #include "MixAll.h"
-#include "ProcessQueue.h"
+#include "ProcessQueueImpl.h"
 #include "Signature.h"
 #include "rocketmq/MQClientException.h"
 #include <chrono>
@@ -303,7 +303,7 @@ ProcessQueueSharedPtr DefaultMQPushConsumerImpl::getOrCreateProcessQueue(const M
     } else {
       SPDLOG_INFO("Create ProcessQueue for message queue[{}]", message_queue.simpleName());
       // create ProcessQueue
-      process_queue = std::make_shared<ProcessQueue>(message_queue, filter_expression, consume_type, shared_from_this(),
+      process_queue = std::make_shared<ProcessQueueImpl>(message_queue, filter_expression, consume_type, shared_from_this(),
                                                      client_instance_);
       std::shared_ptr<AsyncReceiveMessageCallback> receive_callback =
           std::make_shared<AsyncReceiveMessageCallback>(process_queue);

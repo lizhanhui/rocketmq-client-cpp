@@ -4,12 +4,14 @@
 #include <string>
 
 #include "AsyncCallback.h"
-#include "ConsumerType.h"
+#include "ConsumeType.h"
 #include "CredentialsProvider.h"
 #include "ExpressionType.h"
 #include "Logger.h"
 #include "MQMessageQueue.h"
 #include "MessageListener.h"
+#include "rocketmq/MessageModel.h"
+#include "rocketmq/Executor.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
 

@@ -17,7 +17,7 @@ target_sources(rocketmq_obj
             DefaultMQPullConsumerImpl.cpp
             FilterExpression.cpp
             MessageGroupQueueSelector.cpp
-            ProcessQueue.cpp
+        ProcessQueueImpl.cpp
             TransactionImpl.cpp)
 target_include_directories(rocketmq_obj
         PUBLIC

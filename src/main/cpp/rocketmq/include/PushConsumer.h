@@ -3,6 +3,8 @@
 #include "ConsumeMessageService.h"
 #include "Consumer.h"
 #include "ProcessQueue.h"
+#include "rocketmq/Executor.h"
+#include "rocketmq/MessageModel.h"
 #include <functional>
 #include <memory>
 

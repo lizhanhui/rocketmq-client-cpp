@@ -4,6 +4,7 @@
 #include "gtest/gtest.h"
 #include <memory>
 #include "grpc/grpc.h"
+#include "rocketmq/MQMessageExt.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -31,6 +32,38 @@ protected:
 
 TEST_F(ConsumeStandardMessageServiceTest, testStartAndShutdown) {
   consume_standard_message_service_->start();
+  consume_standard_message_service_->shutdown();
+}
+
+TEST_F(ConsumeStandardMessageServiceTest, testConsume) {
+  consume_standard_message_service_->start();
+
+  auto callback = [](const std::function<void(ProcessQueueSharedPtr)>& cb) {
+    
+  };
+
+  ON_CALL(*consumer_, iterateProcessQueue).WillByDefault(testing::Invoke(callback));
+
+  bool completed = false;
+  bool success = false;
+  absl::Mutex mtx;
+  absl::CondVar cv;
+
+  auto listener_cb = [&](const std::vector<MQMessageExt>& messages) {
+    absl::MutexLock lk(&mtx);
+    completed = true;
+    success = !messages.empty();
+    cv.SignalAll();
+    return ConsumeMessageResult::SUCCESS;
+  };
+  
+  ON_CALL(message_listener_, consumeMessage).WillByDefault(testing::Invoke(listener_cb));
+
+  while (!completed) {
+    absl::MutexLock lk(&mtx);
+    cv.WaitWithDeadline(&mtx, absl::Now() + absl::Seconds(3));
+  }
+  
   consume_standard_message_service_->shutdown();
 }
 

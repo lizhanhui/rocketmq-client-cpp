@@ -27,11 +27,6 @@ enum ConsumeInitialMode {
   MAX,
 };
 
-enum MessageModel {
-  BROADCASTING,
-  CLUSTERING,
-};
-
 enum QueryOffsetPolicy : uint8_t {
   BEGINNING = 0,
   END = 1,
@@ -51,7 +46,5 @@ struct PullMessageQuery {
   std::chrono::system_clock::duration await_time;
   std::chrono::system_clock::duration timeout;
 };
-
-using Executor = std::function<void(const std::function<void()>&)>;
 
 ROCKETMQ_NAMESPACE_END

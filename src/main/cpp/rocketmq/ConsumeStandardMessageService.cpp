@@ -5,6 +5,7 @@
 #include "TracingUtility.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_join.h"
+#include "rocketmq/ConsumeType.h"
 #include <limits>
 
 ROCKETMQ_NAMESPACE_BEGIN
@@ -39,9 +40,9 @@ void ConsumeStandardMessageService::submitConsumeTask(const ProcessQueueWeakPtr&
     SPDLOG_WARN("ProcessQueue was destructed. It is likely that client should have shutdown.");
     return;
   }
-  std::shared_ptr<PushConsumer> consumer_impl_ptr = process_queue_ptr->getConsumer().lock();
+  std::shared_ptr<PushConsumer> consumer = process_queue_ptr->getConsumer().lock();
 
-  if (!consumer_impl_ptr) {
+  if (!consumer) {
     return;
   }
 
@@ -49,7 +50,7 @@ void ConsumeStandardMessageService::submitConsumeTask(const ProcessQueueWeakPtr&
   bool has_more = true;
   while (has_more) {
     std::vector<MQMessageExt> messages;
-    uint32_t batch_size = consumer_impl_ptr->consumeBatchSize();
+    uint32_t batch_size = consumer->consumeBatchSize();
     has_more = process_queue_ptr->take(batch_size, messages);
     if (messages.empty()) {
       assert(!has_more);
@@ -57,7 +58,7 @@ void ConsumeStandardMessageService::submitConsumeTask(const ProcessQueueWeakPtr&
     }
 
     // In case custom executor is used.
-    const Executor& custom_executor = consumer_impl_ptr->customExecutor();
+    const Executor& custom_executor = consumer->customExecutor();
     if (custom_executor) {
       std::function<void(void)> consume_task =
           std::bind(&ConsumeStandardMessageService::consumeTask, this, process_queue, messages);

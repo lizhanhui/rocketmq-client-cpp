@@ -1,5 +1,6 @@
 #include "ConsumeMessageService.h"
 #include "PushConsumer.h"
+#include "LoggerImpl.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
 

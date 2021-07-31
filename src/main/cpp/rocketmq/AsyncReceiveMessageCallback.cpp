@@ -1,5 +1,8 @@
 #include "AsyncReceiveMessageCallback.h"
 #include "PushConsumer.h"
+#include "LoggerImpl.h"
+#include "ConsumeMessageType.h"
+#include "ClientInstance.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -33,7 +36,7 @@ void AsyncReceiveMessageCallback::onSuccess(ReceiveMessageResult& result) {
     checkThrottleThenReceive();
     break;
   case ReceiveMessageStatus::DATA_CORRUPTED:
-    if (process_queue_shared_ptr->consumeType() == POP) {
+    if (process_queue_shared_ptr->consumeType() == ConsumeMessageType::POP) {
       process_queue_shared_ptr->cacheMessages(result.messages_);
       impl->getConsumeMessageService()->signalDispatcher();
     }

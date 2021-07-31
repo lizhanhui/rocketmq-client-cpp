@@ -6,7 +6,7 @@
 #include "ClientConfig.h"
 #include "ClientImpl.h"
 #include "ClientInstance.h"
-#include "rocketmq/ConsumerType.h"
+#include "rocketmq/ConsumeType.h"
 #include "rocketmq/MQMessageQueue.h"
 
 ROCKETMQ_NAMESPACE_BEGIN

@@ -1,4 +1,4 @@
-#include "ProcessQueue.h"
+#include "ProcessQueueImpl.h"
 #include "ClientInstance.h"
 #include "Metadata.h"
 #include "Protocol.h"
@@ -13,7 +13,7 @@ using namespace std::chrono;
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-ProcessQueue::ProcessQueue(MQMessageQueue message_queue, FilterExpression filter_expression,
+ProcessQueueImpl::ProcessQueueImpl(MQMessageQueue message_queue, FilterExpression filter_expression,
                            ConsumeMessageType consume_type, std::weak_ptr<PushConsumer> consumer,
                            std::shared_ptr<ClientInstance> client_instance)
     : message_queue_(std::move(message_queue)), filter_expression_(std::move(filter_expression)),
@@ -23,15 +23,15 @@ ProcessQueue::ProcessQueue(MQMessageQueue message_queue, FilterExpression filter
   SPDLOG_DEBUG("Created ProcessQueue={}", simpleName());
 }
 
-ProcessQueue::~ProcessQueue() {
+ProcessQueueImpl::~ProcessQueueImpl() {
   SPDLOG_INFO("ProcessQueue={} should have been re-balanced away, thus, is destructed", simpleName());
 }
 
-void ProcessQueue::callback(std::shared_ptr<ReceiveMessageCallback> callback) {
+void ProcessQueueImpl::callback(std::shared_ptr<ReceiveMessageCallback> callback) {
   receive_callback_ = std::move(callback);
 }
 
-bool ProcessQueue::expired() const {
+bool ProcessQueueImpl::expired() const {
   auto duration = std::chrono::steady_clock::now() - idle_since_;
   if (duration > MixAll::PROCESS_QUEUE_EXPIRATION_THRESHOLD_) {
     SPDLOG_WARN("ProcessQueue={} is expired. It remains idle for {}ms", simpleName(), MixAll::millisecondsOf(duration));
@@ -40,7 +40,7 @@ bool ProcessQueue::expired() const {
   return false;
 }
 
-bool ProcessQueue::shouldThrottle() const {
+bool ProcessQueueImpl::shouldThrottle() const {
   auto consumer = consumer_.lock();
   if (!consumer) {
     return false;
@@ -68,7 +68,7 @@ bool ProcessQueue::shouldThrottle() const {
   return false;
 }
 
-void ProcessQueue::receiveMessage() {
+void ProcessQueueImpl::receiveMessage() {
   switch (consume_type_) {
   case ConsumeMessageType::POP:
     popMessage();
@@ -79,7 +79,7 @@ void ProcessQueue::receiveMessage() {
   }
 }
 
-void ProcessQueue::popMessage() {
+void ProcessQueueImpl::popMessage() {
   rmq::ReceiveMessageRequest request;
 
   absl::flat_hash_map<std::string, std::string> metadata;
@@ -96,7 +96,7 @@ void ProcessQueue::popMessage() {
                                    absl::ToChronoMilliseconds(consumer_client->getIoTimeout()), receive_callback_);
 }
 
-void ProcessQueue::pullMessage() {
+void ProcessQueueImpl::pullMessage() {
   rmq::PullMessageRequest request;
   absl::flat_hash_map<std::string, std::string> metadata;
   wrapPullMessageRequest(metadata, request);
@@ -105,12 +105,12 @@ void ProcessQueue::pullMessage() {
   client_instance_->pullMessage(message_queue_.serviceAddress(), metadata, request, receive_callback_);
 }
 
-bool ProcessQueue::hasPendingMessages() const {
+bool ProcessQueueImpl::hasPendingMessages() const {
   absl::MutexLock lk(&messages_mtx_);
   return !cached_messages_.empty();
 }
 
-void ProcessQueue::cacheMessages(const std::vector<MQMessageExt>& messages) {
+void ProcessQueueImpl::cacheMessages(const std::vector<MQMessageExt>& messages) {
   auto consumer = consumer_.lock();
   if (!consumer) {
     return;
@@ -150,7 +150,7 @@ void ProcessQueue::cacheMessages(const std::vector<MQMessageExt>& messages) {
   }
 }
 
-bool ProcessQueue::take(uint32_t batch_size, std::vector<MQMessageExt>& messages) {
+bool ProcessQueueImpl::take(uint32_t batch_size, std::vector<MQMessageExt>& messages) {
   absl::MutexLock lock(&messages_mtx_);
   if (cached_messages_.empty()) {
     return false;
@@ -167,7 +167,7 @@ bool ProcessQueue::take(uint32_t batch_size, std::vector<MQMessageExt>& messages
   return !cached_messages_.empty();
 }
 
-bool ProcessQueue::committedOffset(int64_t& offset) {
+bool ProcessQueueImpl::committedOffset(int64_t& offset) {
   absl::MutexLock lk(&offsets_mtx_);
   if (offsets_.empty()) {
     return false;
@@ -180,7 +180,7 @@ bool ProcessQueue::committedOffset(int64_t& offset) {
   return true;
 }
 
-void ProcessQueue::release(uint64_t body_size, int64_t offset) {
+void ProcessQueueImpl::release(uint64_t body_size, int64_t offset) {
   auto consumer = consumer_.lock();
   if (!consumer) {
     return;
@@ -201,7 +201,7 @@ void ProcessQueue::release(uint64_t body_size, int64_t offset) {
   }
 }
 
-void ProcessQueue::wrapPopMessageRequest(absl::flat_hash_map<std::string, std::string>& metadata,
+void ProcessQueueImpl::wrapPopMessageRequest(absl::flat_hash_map<std::string, std::string>& metadata,
                                          rmq::ReceiveMessageRequest& request) {
   std::shared_ptr<PushConsumer> consumer = consumer_.lock();
   assert(consumer);
@@ -244,7 +244,7 @@ void ProcessQueue::wrapPopMessageRequest(absl::flat_hash_map<std::string, std::s
   request.mutable_invisible_duration()->set_nanos(nano_seconds);
 }
 
-void ProcessQueue::wrapPullMessageRequest(absl::flat_hash_map<std::string, std::string>& metadata,
+void ProcessQueueImpl::wrapPullMessageRequest(absl::flat_hash_map<std::string, std::string>& metadata,
                                           rmq::PullMessageRequest& request) {
   std::shared_ptr<PushConsumer> consumer = consumer_.lock();
   assert(consumer);
@@ -276,12 +276,12 @@ void ProcessQueue::wrapPullMessageRequest(absl::flat_hash_map<std::string, std::
   }
 }
 
-std::weak_ptr<PushConsumer> ProcessQueue::getConsumer() { return consumer_; }
+std::weak_ptr<PushConsumer> ProcessQueueImpl::getConsumer() { return consumer_; }
 
-std::shared_ptr<ClientInstance> ProcessQueue::getClientInstance() { return client_instance_; }
+std::shared_ptr<ClientInstance> ProcessQueueImpl::getClientInstance() { return client_instance_; }
 
-MQMessageQueue ProcessQueue::getMQMessageQueue() { return message_queue_; }
+MQMessageQueue ProcessQueueImpl::getMQMessageQueue() { return message_queue_; }
 
-const FilterExpression& ProcessQueue::getFilterExpression() const { return filter_expression_; }
+const FilterExpression& ProcessQueueImpl::getFilterExpression() const { return filter_expression_; }
 
 ROCKETMQ_NAMESPACE_END
