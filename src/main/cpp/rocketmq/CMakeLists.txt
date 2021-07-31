@@ -39,3 +39,5 @@ target_link_libraries(rocketmq_library
             client_library
             CURL::libcurl
             logger_library)
+
+add_subdirectory(mocks)

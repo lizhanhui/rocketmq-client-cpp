@@ -36,6 +36,7 @@ target_link_libraries(process_queue_test
         PRIVATE
             gtest_main
             rpc_client_mock
+
             rocketmq_library)
 
 add_executable(ut_credentials_provider CredentialsProviderTest.cpp)

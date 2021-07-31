@@ -56,3 +56,4 @@ target_link_libraries(base_library
             spdlog::spdlog_header_only
             uv_a
             zlib)
+add_subdirectory(mocks)

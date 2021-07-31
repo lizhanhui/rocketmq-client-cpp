@@ -4,6 +4,7 @@
 #include "DefaultMQPushConsumerImpl.h"
 #include "InvocationContext.h"
 #include "ProcessQueueImpl.h"
+#include "ProcessQueueMock.h"
 #include "ReceiveMessageCallbackMock.h"
 #include "RpcClientMock.h"
 #include "absl/memory/memory.h"
