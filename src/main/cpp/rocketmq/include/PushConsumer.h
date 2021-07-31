@@ -38,4 +38,7 @@ public:
                               ConsumeMessageType consume_type) = 0;
 };
 
+using PushConsumerSharedPtr = std::shared_ptr<PushConsumer>;
+using PushConsumerWeakPtr = std::weak_ptr<PushConsumer>;
+
 ROCKETMQ_NAMESPACE_END

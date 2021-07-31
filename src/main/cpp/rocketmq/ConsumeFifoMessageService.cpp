@@ -8,9 +8,9 @@
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-ConsumeFifoMessageService ::ConsumeFifoMessageService(std::weak_ptr<PushConsumer> consumer_impl_ptr,
-                                                      int thread_count, MessageListener* message_listener_ptr)
-    : ConsumeMessageService(std::move(consumer_impl_ptr), thread_count, message_listener_ptr) {}
+ConsumeFifoMessageService ::ConsumeFifoMessageService(std::weak_ptr<PushConsumer> consumer, int thread_count,
+                                                      MessageListener* message_listener)
+    : ConsumeMessageService(std::move(consumer), thread_count, message_listener) {}
 
 void ConsumeFifoMessageService::start() {
   ConsumeMessageService::start();
@@ -35,7 +35,8 @@ void ConsumeFifoMessageService::shutdown() {
 }
 
 void ConsumeFifoMessageService::submitConsumeTask0(const std::shared_ptr<PushConsumer>& consumer,
-                                                   ProcessQueueWeakPtr process_queue, MQMessageExt message) {
+                                                   const ProcessQueueWeakPtr& process_queue,
+                                                   const MQMessageExt& message) {
   // In case custom executor is used.
   const Executor& custom_executor = consumer->customExecutor();
   if (custom_executor) {
@@ -79,7 +80,7 @@ void ConsumeFifoMessageService::submitConsumeTask(const ProcessQueueWeakPtr& pro
 
 MessageListenerType ConsumeFifoMessageService::messageListenerType() { return MessageListenerType::FIFO; }
 
-void ConsumeFifoMessageService::consumeTask(const ProcessQueueWeakPtr& process_queue, MQMessageExt message) {
+void ConsumeFifoMessageService::consumeTask(const ProcessQueueWeakPtr& process_queue, MQMessageExt& message) {
   ProcessQueueSharedPtr process_queue_ptr = process_queue.lock();
   if (!process_queue_ptr) {
     return;
@@ -144,7 +145,7 @@ void ConsumeFifoMessageService::consumeTask(const ProcessQueueWeakPtr& process_q
   }
 }
 
-void ConsumeFifoMessageService::onAck(const ProcessQueueWeakPtr& process_queue, MQMessageExt message, bool ok) {
+void ConsumeFifoMessageService::onAck(const ProcessQueueWeakPtr& process_queue, const MQMessageExt& message, bool ok) {
   auto process_queue_ptr = process_queue.lock();
   if (!process_queue_ptr) {
     SPDLOG_WARN("ProcessQueue has destructed.");
@@ -172,8 +173,8 @@ void ConsumeFifoMessageService::onAck(const ProcessQueueWeakPtr& process_queue, 
   }
 }
 
-void ConsumeFifoMessageService::onForwardToDeadLetterQueue(ProcessQueueWeakPtr process_queue, MQMessageExt message,
-                                                           bool ok) {
+void ConsumeFifoMessageService::onForwardToDeadLetterQueue(const ProcessQueueWeakPtr& process_queue,
+                                                           const MQMessageExt& message, bool ok) {
   if (ok) {
     SPDLOG_DEBUG("Forward message[Topic={}, MessagId={}] to DLQ OK", message.getTopic(), message.getMsgId());
     auto process_queue_ptr = process_queue.lock();
@@ -186,7 +187,7 @@ void ConsumeFifoMessageService::onForwardToDeadLetterQueue(ProcessQueueWeakPtr p
   SPDLOG_INFO("Failed to forward message[topic={}, MessageId={}] to DLQ", message.getTopic(), message.getMsgId());
   auto process_queue_ptr = process_queue.lock();
   if (!process_queue_ptr) {
-    SPDLOG_INFO("Abort futher attempts considering its process queue has destructed");
+    SPDLOG_INFO("Abort further attempts considering its process queue has destructed");
     return;
   }
 
@@ -197,8 +198,8 @@ void ConsumeFifoMessageService::onForwardToDeadLetterQueue(ProcessQueueWeakPtr p
   consumer->schedule("Scheduled-Forward-DLQ-Task", task, std::chrono::milliseconds(100));
 }
 
-void ConsumeFifoMessageService::scheduleForwardDeadLetterQueueTask(ProcessQueueWeakPtr process_queue,
-                                                                   MQMessageExt message) {
+void ConsumeFifoMessageService::scheduleForwardDeadLetterQueueTask(const ProcessQueueWeakPtr& process_queue,
+                                                                   const MQMessageExt& message) {
   auto process_queue_ptr = process_queue.lock();
   if (!process_queue_ptr) {
     return;
@@ -210,7 +211,7 @@ void ConsumeFifoMessageService::scheduleForwardDeadLetterQueueTask(ProcessQueueW
   consumer->forwardToDeadLetterQueue(message, callback);
 }
 
-void ConsumeFifoMessageService::scheduleAckTask(ProcessQueueWeakPtr process_queue, MQMessageExt message) {
+void ConsumeFifoMessageService::scheduleAckTask(const ProcessQueueWeakPtr& process_queue, const MQMessageExt& message) {
   auto process_queue_ptr = process_queue.lock();
   if (!process_queue_ptr) {
     return;
@@ -223,7 +224,8 @@ void ConsumeFifoMessageService::scheduleAckTask(ProcessQueueWeakPtr process_queu
   }
 }
 
-void ConsumeFifoMessageService::scheduleConsumeTask(ProcessQueueWeakPtr process_queue, MQMessageExt message) {
+void ConsumeFifoMessageService::scheduleConsumeTask(const ProcessQueueWeakPtr& process_queue,
+                                                    const MQMessageExt& message) {
   auto consumer_ptr = consumer_.lock();
   if (!consumer_ptr) {
     return;
