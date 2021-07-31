@@ -17,25 +17,23 @@ public:
 
   MOCK_METHOD(std::string, topic, (), (const override));
 
-  MOCK_METHOD(bool, take, (uint32_t, (std::vector<MQMessageExt>&), (override)));
+  MOCK_METHOD(bool, take, (uint32_t, (std::vector<MQMessageExt>&)), (override));
 
   MOCK_METHOD(std::weak_ptr<PushConsumer>, getConsumer, (), (override));
 
   MOCK_METHOD(const std::string&, simpleName, (), (const override));
 
-  MOCK_METHOD(MQMessageQueue, getMessageQueue, (), (override));
-
   MOCK_METHOD(bool, committedOffset, (int64_t&), (override));
 
   MOCK_METHOD(void, release, (uint64_t, int64_t), (override));
 
-  MOCK_METHOD(ConsumeType, consumeType, (), (const override));
+  MOCK_METHOD(ConsumeMessageType, consumeType, (), (const override));
 
   MOCK_METHOD(void, cacheMessages, (const std::vector<MQMessageExt>&), (override));
 
   MOCK_METHOD(bool, shouldThrottle, (), (const override));
 
-  MOCK_METHOD(std::shared_ptr<ClientInstance>, getClientInstance, (), (override));
+  MOCK_METHOD((std::shared_ptr<ClientInstance>), getClientInstance, (), (override));
 
   MOCK_METHOD(void, syncIdleState, (), (override));
 
@@ -44,6 +42,8 @@ public:
   MOCK_METHOD(bool, bindFifoConsumeTask, (), (override));
 
   MOCK_METHOD(bool, unbindFifoConsumeTask, (), (override));
+
+  MOCK_METHOD(MQMessageQueue, getMQMessageQueue, (), (override));
 };
 
 ROCKETMQ_NAMESPACE_END

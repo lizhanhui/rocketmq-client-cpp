@@ -35,8 +35,9 @@ add_executable(process_queue_test ProcessQueueTest.cpp)
 target_link_libraries(process_queue_test
         PRIVATE
             gtest_main
-            rpc_client_mock
-
+            base_mocks
+            client_mocks
+            rocketmq_mocks
             rocketmq_library)
 
 add_executable(ut_credentials_provider CredentialsProviderTest.cpp)
@@ -53,5 +54,24 @@ target_link_libraries(ut_send_callbacks
 add_executable(consume_message_service ConsumeStandardMessageServiceTest.cpp)
 target_link_libraries(consume_message_service
         PRIVATE
+            gtest_main
+            rocketmq_library)
+
+add_executable(filter_expression_test FilterExpressionTest.cpp)
+target_link_libraries(filter_expression_test
+        PRIVATE
+            gtest_main
+            rocketmq_library)
+
+add_executable(message_group_queue_selector_test MessageGroupQueueSelectorTest.cpp)
+target_link_libraries(message_group_queue_selector_test
+        PRIVATE
+            gtest_main
+            rocketmq_library)
+
+add_executable(sts_credentials_provider_test StsCredentialsProviderImplTest.cpp)
+target_link_libraries(sts_credentials_provider_test
+        PRIVATE
+            base_mocks
             gtest_main
             rocketmq_library)

@@ -10,7 +10,7 @@
 #include "absl/memory/memory.h"
 #include "absl/synchronization/mutex.h"
 #include "gtest/gtest.h"
-#include <apache/rocketmq/v1/definition.pb.h>
+#include "apache/rocketmq/v1/definition.pb.h"
 #include <chrono>
 #include <iostream>
 #include <memory>
@@ -132,6 +132,10 @@ TEST_F(ProcessQueueTest, testReceiveMessageByPull) {
     absl::MutexLock lk(&mtx);
     cv.Wait(&mtx);
   }
+}
+
+TEST(ProcessQueueMockTest, testMock) {
+  testing::NiceMock<ProcessQueueMock> mock;
 }
 
 ROCKETMQ_NAMESPACE_END
