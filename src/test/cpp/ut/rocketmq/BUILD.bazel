@@ -140,3 +140,14 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "consumer_test",
+    srcs = [
+        "ConsumerTest.cpp",
+    ],
+    deps = [
+        "//src/main/cpp/rocketmq:rocketmq_mocks",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

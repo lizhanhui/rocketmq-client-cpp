@@ -75,3 +75,9 @@ target_link_libraries(sts_credentials_provider_test
             base_mocks
             gtest_main
             rocketmq_library)
+
+add_executable(consumer_test ConsumerTest.cpp)
+target_link_libraries(consumer_test
+        PRIVATE
+            rocketmq_mocks
+            gtest_main)
