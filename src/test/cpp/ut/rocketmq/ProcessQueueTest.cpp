@@ -182,7 +182,8 @@ TEST_F(ProcessQueueTest, testTake2) {
   std::vector<MQMessageExt> msgs;
   EXPECT_TRUE(process_queue_->take(consume_batch_size_, msgs));
   EXPECT_FALSE(msgs.empty());
-  // EXPECT_EQ(tag_, msgs.begin()->getTags());
+  EXPECT_EQ(tag_, msgs.begin()->getTags());
+  EXPECT_EQ(topic_, msgs.begin()->getTopic());
 }
 
 ROCKETMQ_NAMESPACE_END

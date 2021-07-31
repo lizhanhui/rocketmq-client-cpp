@@ -157,7 +157,7 @@ bool ProcessQueueImpl::take(uint32_t batch_size, std::vector<MQMessageExt>& mess
   }
 
   for (auto it = cached_messages_.begin(); it != cached_messages_.end();) {
-    if (--batch_size < 0) {
+    if (--batch_size <= 0) {
       break;
     }
 
