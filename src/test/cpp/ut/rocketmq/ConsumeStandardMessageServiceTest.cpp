@@ -30,6 +30,8 @@ public:
       return false;
     };
     ON_CALL(*process_queue_, take).WillByDefault(testing::Invoke(mock_take));
+    ON_CALL(*process_queue_, getConsumer).WillByDefault(testing::Return(consumer));
+    ON_CALL(*consumer_, customExecutor).WillByDefault(testing::ReturnRef(executor_));
   }
 
   void TearDown() override { grpc_shutdown(); }
@@ -44,6 +46,7 @@ protected:
   std::shared_ptr<ConsumeStandardMessageService> consume_standard_message_service_;
   testing::NiceMock<StandardMessageListenerMock> message_listener_;
   std::shared_ptr<testing::NiceMock<ProcessQueueMock>> process_queue_;
+  Executor executor_;
 };
 
 TEST_F(ConsumeStandardMessageServiceTest, testStartAndShutdown) {
@@ -52,6 +55,7 @@ TEST_F(ConsumeStandardMessageServiceTest, testStartAndShutdown) {
 }
 
 TEST_F(ConsumeStandardMessageServiceTest, testConsume) {
+  ASSERT_FALSE(executor_);
   consume_standard_message_service_->start();
 
   auto callback = [this](const std::function<void(ProcessQueueSharedPtr)>& cb) { cb(process_queue_); };
