@@ -14,6 +14,7 @@ public:
   MOCK_METHOD(CredentialsProviderPtr, credentialsProvider, (), (override));
   MOCK_METHOD(const std::string&, tenantId, (), (const override));
   MOCK_METHOD(absl::Duration, getIoTimeout, (), (const override));
+  MOCK_METHOD(absl::Duration, getLongPollingTimeout, (), (const override));
   MOCK_METHOD(const std::string&, getGroupName, (), (const override));
   MOCK_METHOD(std::string, clientId, (), (const override));
 };

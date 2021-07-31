@@ -23,6 +23,8 @@ public:
 
   virtual absl::Duration getIoTimeout() const = 0;
 
+  virtual absl::Duration getLongPollingTimeout() const = 0;
+
   virtual const std::string& getGroupName() const = 0;
 
   virtual std::string clientId() const = 0;

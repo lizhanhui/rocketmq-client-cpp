@@ -1,5 +1,5 @@
 #include "rocketmq/DefaultMQPushConsumer.h"
-#include "ClientManager.h"
+#include "ClientManagerFactory.h"
 #include "DefaultMQPushConsumerImpl.h"
 #include "InvocationContext.h"
 #include "MQClientTest.h"

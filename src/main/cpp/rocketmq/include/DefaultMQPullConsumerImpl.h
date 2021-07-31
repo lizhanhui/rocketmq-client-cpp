@@ -5,7 +5,7 @@
 
 #include "ClientConfig.h"
 #include "ClientImpl.h"
-#include "ClientInstance.h"
+#include "ClientManagerImpl.h"
 #include "rocketmq/ConsumeType.h"
 #include "rocketmq/MQMessageQueue.h"
 

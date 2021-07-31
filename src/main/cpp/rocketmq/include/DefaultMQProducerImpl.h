@@ -6,7 +6,7 @@
 #include <string>
 
 #include "ClientImpl.h"
-#include "ClientInstance.h"
+#include "ClientManagerImpl.h"
 #include "MixAll.h"
 #include "TopicPublishInfo.h"
 #include "TransactionImpl.h"

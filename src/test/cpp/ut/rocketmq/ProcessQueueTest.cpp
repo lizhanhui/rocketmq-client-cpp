@@ -1,6 +1,6 @@
 #include "Assignment.h"
-#include "ClientInstance.h"
-#include "ClientManager.h"
+#include "ClientManagerFactory.h"
+#include "ClientManagerImpl.h"
 #include "ConsumeMessageType.h"
 #include "InvocationContext.h"
 #include "MessageAccessor.h"
@@ -29,8 +29,8 @@ public:
     message_queue_.setTopic(topic_);
     message_queue_.setBrokerName(broker_name_);
     message_queue_.setQueueId(queue_id_);
-    client_instance_ = std::make_shared<ClientInstance>(arn_);
-    ClientManager::getInstance().addClientInstance(arn_, client_instance_);
+    client_instance_ = std::make_shared<ClientManagerImpl>(arn_);
+    ClientManagerFactory::getInstance().addClientInstance(arn_, client_instance_);
     client_instance_->addRpcClient(service_address_, rpc_client_);
     auto credentials_provider = std::make_shared<StaticCredentialsProvider>(access_key_, access_secret_);
     consumer_ = std::make_shared<testing::NiceMock<PushConsumerMock>>();
@@ -56,7 +56,7 @@ protected:
   FilterExpression filter_expression_{tag_};
   MQMessageQueue message_queue_;
   std::shared_ptr<testing::NiceMock<RpcClientMock>> rpc_client_;
-  std::shared_ptr<ClientInstance> client_instance_;
+  std::shared_ptr<ClientManagerImpl> client_instance_;
   std::shared_ptr<testing::NiceMock<PushConsumerMock>> consumer_;
   std::shared_ptr<ProcessQueueImpl> process_queue_;
   std::shared_ptr<testing::NiceMock<ReceiveMessageCallbackMock>> receive_message_callback_;

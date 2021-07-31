@@ -4,11 +4,11 @@
 #include <chrono>
 #include <functional>
 #include <future>
-#include <memory>
 #include <string>
 #include <vector>
 
 #include "Client.h"
+#include "ClientManager.h"
 #include "HeartbeatDataCallback.h"
 #include "Histogram.h"
 #include "InvocationContext.h"
@@ -40,15 +40,15 @@
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-class ClientInstance : public std::enable_shared_from_this<ClientInstance> {
+class ClientManagerImpl : virtual public ClientManager, public std::enable_shared_from_this<ClientManagerImpl> {
 public:
-  explicit ClientInstance(std::string arn);
+  explicit ClientManagerImpl(std::string arn);
 
-  ~ClientInstance();
+  ~ClientManagerImpl() override;
 
-  void start();
+  void start() override;
 
-  void shutdown() LOCKS_EXCLUDED(rpc_clients_mtx_);
+  void shutdown() override LOCKS_EXCLUDED(rpc_clients_mtx_);
 
   static void assignLabels(Histogram& histogram);
 
@@ -63,7 +63,8 @@ public:
    */
   void resolveRoute(const std::string& target_host, const absl::flat_hash_map<std::string, std::string>& metadata,
                     const QueryRouteRequest& request, std::chrono::milliseconds timeout,
-                    const std::function<void(bool, const TopicRouteDataPtr& ptr)>& cb) LOCKS_EXCLUDED(rpc_clients_mtx_);
+                    const std::function<void(bool, const TopicRouteDataPtr& ptr)>& cb) override
+      LOCKS_EXCLUDED(rpc_clients_mtx_);
 
   void doHealthCheck() LOCKS_EXCLUDED(clients_mtx_);
 
@@ -76,13 +77,14 @@ public:
   /**
    * Execute health-check on behalf of the client.
    */
-  void healthCheck(const std::string& target_host, const absl::flat_hash_map<std::string, std::string>& metadata,
-                   const HealthCheckRequest& request, std::chrono::milliseconds timeout,
-                   const std::function<void(const std::string&, const InvocationContext<HealthCheckResponse>*)>& cb)
+  void
+  healthCheck(const std::string& target_host, const absl::flat_hash_map<std::string, std::string>& metadata,
+              const HealthCheckRequest& request, std::chrono::milliseconds timeout,
+              const std::function<void(const std::string&, const InvocationContext<HealthCheckResponse>*)>& cb) override
       LOCKS_EXCLUDED(rpc_clients_mtx_);
 
   bool send(const std::string& target_host, const absl::flat_hash_map<std::string, std::string>& metadata,
-            SendMessageRequest& request, SendCallback* cb) LOCKS_EXCLUDED(rpc_clients_mtx_);
+            SendMessageRequest& request, SendCallback* cb) override LOCKS_EXCLUDED(rpc_clients_mtx_);
 
   /**
    * Get a RpcClient according to the given target hosts, which follows scheme specified
@@ -106,19 +108,15 @@ public:
   // Test purpose only
   void cleanRpcClients() LOCKS_EXCLUDED(rpc_clients_mtx_);
 
-  void addClientObserver(std::weak_ptr<Client> client);
+  void addClientObserver(std::weak_ptr<Client> client) override;
 
   void queryAssignment(const std::string& target, const absl::flat_hash_map<std::string, std::string>& metadata,
                        const QueryAssignmentRequest& request, std::chrono::milliseconds timeout,
-                       const std::function<void(bool, const QueryAssignmentResponse&)>& cb);
+                       const std::function<void(bool, const QueryAssignmentResponse&)>& cb) override;
 
   void receiveMessage(const std::string& target, const absl::flat_hash_map<std::string, std::string>& metadata,
                       const ReceiveMessageRequest& request, std::chrono::milliseconds timeout,
-                      std::shared_ptr<ReceiveMessageCallback>& cb) LOCKS_EXCLUDED(rpc_clients_mtx_);
-
-  void pullMessage(const std::string& target, absl::flat_hash_map<std::string, std::string>& metadata,
-                   const PullMessageRequest& request, std::shared_ptr<ReceiveMessageCallback>& cb)
-      LOCKS_EXCLUDED(rpc_clients_mtx_);
+                      std::shared_ptr<ReceiveMessageCallback>& cb) override LOCKS_EXCLUDED(rpc_clients_mtx_);
 
   /**
    * Translate protobuf message struct to domain model.
@@ -127,11 +125,11 @@ public:
    * @param message_ext
    * @return true if the translation succeeded; false if something wrong happens, including checksum verification, etc.
    */
-  bool wrapMessage(const rmq::Message& item, MQMessageExt& message_ext);
+  bool wrapMessage(const rmq::Message& item, MQMessageExt& message_ext) override;
 
-  Scheduler& getScheduler();
+  Scheduler& getScheduler() override;
 
-  TopAddressing& topAddressing();
+  TopAddressing& topAddressing() override;
 
   /**
    * Ack message asynchronously.
@@ -139,16 +137,17 @@ public:
    * @param request Ack message request.
    */
   void ack(const std::string& target_host, const absl::flat_hash_map<std::string, std::string>& metadata,
-           const AckMessageRequest& request, std::chrono::milliseconds timeout, const std::function<void(bool)>& cb);
+           const AckMessageRequest& request, std::chrono::milliseconds timeout,
+           const std::function<void(bool)>& cb) override;
 
   void nack(const std::string& target_host, const absl::flat_hash_map<std::string, std::string>& metadata,
             const NackMessageRequest& request, std::chrono::milliseconds timeout,
-            const std::function<void(bool)>& callback);
+            const std::function<void(bool)>& callback) override;
 
   void forwardMessageToDeadLetterQueue(
       const std::string& target_host, const absl::flat_hash_map<std::string, std::string>& metadata,
       const ForwardMessageToDeadLetterQueueRequest& request, std::chrono::milliseconds timeout,
-      const std::function<void(const InvocationContext<ForwardMessageToDeadLetterQueueResponse>*)>& cb);
+      const std::function<void(const InvocationContext<ForwardMessageToDeadLetterQueueResponse>*)>& cb) override;
 
   /**
    * End a transaction asynchronously.
@@ -166,48 +165,19 @@ public:
    */
   void endTransaction(const std::string& target_host, const absl::flat_hash_map<std::string, std::string>& metadata,
                       const EndTransactionRequest& request, std::chrono::milliseconds timeout,
-                      const std::function<void(bool, const EndTransactionResponse&)>& cb);
+                      const std::function<void(bool, const EndTransactionResponse&)>& cb) override;
 
   void multiplexingCall(const std::string& target, const absl::flat_hash_map<std::string, std::string>& metadata,
                         const MultiplexingRequest& request, std::chrono::milliseconds timeout,
-                        const std::function<void(const InvocationContext<MultiplexingResponse>*)>& cb);
+                        const std::function<void(const InvocationContext<MultiplexingResponse>*)>& cb) override;
 
-  template <typename Callable>
   void queryOffset(const std::string& target_host, const absl::flat_hash_map<std::string, std::string>& metadata,
-                   const QueryOffsetRequest& request, std::chrono::milliseconds timeout, const Callable& cb) {
-    auto client = getRpcClient(target_host);
-    if (!client) {
-      SPDLOG_WARN("Failed to get/create RPC client for {}", target_host);
-      return;
-    }
-
-    auto invocation_context = new InvocationContext<QueryOffsetResponse>();
-    invocation_context->remote_address = target_host;
-    invocation_context->context.set_deadline(std::chrono::system_clock::now() + timeout);
-    auto callback = [cb](const InvocationContext<QueryOffsetResponse>* invocation_context) {
-      if (!invocation_context->status.ok()) {
-        SPDLOG_WARN("Failed to send query offset request to {}. Reason: {}", invocation_context->remote_address,
-                    invocation_context->status.error_message());
-        cb(false, invocation_context->response);
-        return;
-      }
-
-      if (google::rpc::Code::OK != invocation_context->response.common().status().code()) {
-        SPDLOG_WARN("Server[host={}] failed to process query offset request. Reason: {}",
-                    invocation_context->remote_address, invocation_context->response.common().DebugString());
-        cb(false, invocation_context->response);
-      }
-
-      SPDLOG_DEBUG("Query offset from server[host={}] OK", invocation_context->remote_address);
-      cb(true, invocation_context->response);
-    };
-    invocation_context->callback = callback;
-    client->asyncQueryOffset(request, invocation_context);
-  }
+                   const QueryOffsetRequest& request, std::chrono::milliseconds timeout,
+                   const std::function<void(bool, const QueryOffsetResponse&)>& cb) override;
 
   void pullMessage(const std::string& target_host, const absl::flat_hash_map<std::string, std::string>& metadata,
                    const PullMessageRequest& request, std::chrono::milliseconds timeout,
-                   const std::function<void(bool, const PullMessageResponse&)>& cb);
+                   const std::function<void(const InvocationContext<PullMessageResponse>*)>& cb) override;
 
 #ifdef ENABLE_TRACING
   nostd::shared_ptr<trace::Tracer> getTracer();
@@ -218,14 +188,16 @@ public:
 
   void heartbeat(const std::string& target_host, const absl::flat_hash_map<std::string, std::string>& metadata,
                  const HeartbeatRequest& request, std::chrono::milliseconds timeout,
-                 const std::function<void(bool, const HeartbeatResponse&)>& cb);
+                 const std::function<void(bool, const HeartbeatResponse&)>& cb) override;
+
+  void processPullResult(const grpc::ClientContext& client_context, const PullMessageResponse& response,
+                         ReceiveMessageResult& result, const std::string& target_host) override;
 
 private:
   void processPopResult(const grpc::ClientContext& client_context, const ReceiveMessageResponse& response,
                         ReceiveMessageResult& result, const std::string& target_host);
 
-  void processPullResult(const grpc::ClientContext& client_context, const PullMessageResponse& response,
-                         ReceiveMessageResult& result, const std::string& target_host);
+
 
   bool active();
 
@@ -289,7 +261,5 @@ private:
 
   TopAddressing top_addressing_;
 };
-
-using ClientInstancePtr = std::shared_ptr<ClientInstance>;
 
 ROCKETMQ_NAMESPACE_END

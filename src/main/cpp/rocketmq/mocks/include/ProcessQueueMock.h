@@ -33,7 +33,7 @@ public:
 
   MOCK_METHOD(bool, shouldThrottle, (), (const override));
 
-  MOCK_METHOD((std::shared_ptr<ClientInstance>), getClientInstance, (), (override));
+  MOCK_METHOD((std::shared_ptr<ClientManager>), getClientManager, (), (override));
 
   MOCK_METHOD(void, syncIdleState, (), (override));
 

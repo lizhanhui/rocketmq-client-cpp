@@ -1,5 +1,5 @@
 #include "ProcessQueueImpl.h"
-#include "ClientInstance.h"
+#include "ClientManagerImpl.h"
 #include "Metadata.h"
 #include "Protocol.h"
 #include "PushConsumer.h"
@@ -14,12 +14,12 @@ using namespace std::chrono;
 ROCKETMQ_NAMESPACE_BEGIN
 
 ProcessQueueImpl::ProcessQueueImpl(MQMessageQueue message_queue, FilterExpression filter_expression,
-                           ConsumeMessageType consume_type, std::weak_ptr<PushConsumer> consumer,
-                           std::shared_ptr<ClientInstance> client_instance)
+                                   ConsumeMessageType consume_type, std::weak_ptr<PushConsumer> consumer,
+                                   std::shared_ptr<ClientManager> client_instance)
     : message_queue_(std::move(message_queue)), filter_expression_(std::move(filter_expression)),
       consume_type_(consume_type), invisible_time_(MixAll::millisecondsOf(MixAll::DEFAULT_INVISIBLE_TIME_)),
       simple_name_(message_queue_.simpleName()), consumer_(std::move(consumer)),
-      client_instance_(std::move(client_instance)), cached_message_quantity_(0), cached_message_memory_(0) {
+      client_manager_(std::move(client_instance)), cached_message_quantity_(0), cached_message_memory_(0) {
   SPDLOG_DEBUG("Created ProcessQueue={}", simpleName());
 }
 
@@ -92,8 +92,8 @@ void ProcessQueueImpl::popMessage() {
   wrapPopMessageRequest(metadata, request);
   syncIdleState();
   SPDLOG_DEBUG("Try to pop message from {}", message_queue_.simpleName());
-  client_instance_->receiveMessage(message_queue_.serviceAddress(), metadata, request,
-                                   absl::ToChronoMilliseconds(consumer_client->getIoTimeout()), receive_callback_);
+  client_manager_->receiveMessage(message_queue_.serviceAddress(), metadata, request,
+                                  absl::ToChronoMilliseconds(consumer_client->getIoTimeout()), receive_callback_);
 }
 
 void ProcessQueueImpl::pullMessage() {
@@ -102,7 +102,36 @@ void ProcessQueueImpl::pullMessage() {
   wrapPullMessageRequest(metadata, request);
   syncIdleState();
   SPDLOG_DEBUG("Try to pull message from {}", message_queue_.simpleName());
-  client_instance_->pullMessage(message_queue_.serviceAddress(), metadata, request, receive_callback_);
+
+  auto consumer = consumer_.lock();
+  auto timeout = consumer->getLongPollingTimeout();
+
+  auto callback = [this](const InvocationContext<PullMessageResponse>* invocation_context) {
+    if (!invocation_context) {
+      MQException e("Transport layer failure", -1, __FILE__, __LINE__);
+      receive_callback_->onException(e);
+      return;
+    }
+
+    if (invocation_context->status.ok()) {
+      if (google::rpc::Code::OK == invocation_context->response.common().status().code()) {
+        ReceiveMessageResult result;
+        client_manager_->processPullResult(invocation_context->context, invocation_context->response, result,
+                                           invocation_context->remote_address);
+        receive_callback_->onSuccess(result);
+      } else {
+        auto status = invocation_context->response.common().status();
+        MQException e(status.message(), status.code(), __FILE__, __LINE__);
+        receive_callback_->onException(e);
+      }
+    } else {
+      MQException e(invocation_context->status.error_message(), invocation_context->status.error_code(), __FILE__,
+                    __LINE__);
+      receive_callback_->onException(e);
+    }
+  };
+  client_manager_->pullMessage(message_queue_.serviceAddress(), metadata, request, absl::ToChronoMilliseconds(timeout),
+                               callback);
 }
 
 bool ProcessQueueImpl::hasPendingMessages() const {
@@ -202,7 +231,7 @@ void ProcessQueueImpl::release(uint64_t body_size, int64_t offset) {
 }
 
 void ProcessQueueImpl::wrapPopMessageRequest(absl::flat_hash_map<std::string, std::string>& metadata,
-                                         rmq::ReceiveMessageRequest& request) {
+                                             rmq::ReceiveMessageRequest& request) {
   std::shared_ptr<PushConsumer> consumer = consumer_.lock();
   assert(consumer);
   request.set_client_id(consumer->clientId());
@@ -245,7 +274,7 @@ void ProcessQueueImpl::wrapPopMessageRequest(absl::flat_hash_map<std::string, st
 }
 
 void ProcessQueueImpl::wrapPullMessageRequest(absl::flat_hash_map<std::string, std::string>& metadata,
-                                          rmq::PullMessageRequest& request) {
+                                              rmq::PullMessageRequest& request) {
   std::shared_ptr<PushConsumer> consumer = consumer_.lock();
   assert(consumer);
   request.set_client_id(consumer->clientId());
@@ -278,7 +307,7 @@ void ProcessQueueImpl::wrapPullMessageRequest(absl::flat_hash_map<std::string, s
 
 std::weak_ptr<PushConsumer> ProcessQueueImpl::getConsumer() { return consumer_; }
 
-std::shared_ptr<ClientInstance> ProcessQueueImpl::getClientInstance() { return client_instance_; }
+std::shared_ptr<ClientManager> ProcessQueueImpl::getClientManager() { return client_manager_; }
 
 MQMessageQueue ProcessQueueImpl::getMQMessageQueue() { return message_queue_; }
 

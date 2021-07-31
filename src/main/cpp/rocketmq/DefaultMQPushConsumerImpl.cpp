@@ -1,7 +1,7 @@
 #include "DefaultMQPushConsumerImpl.h"
 
 #include "AsyncReceiveMessageCallback.h"
-#include "ClientManager.h"
+#include "ClientManagerFactory.h"
 #include "MessageAccessor.h"
 #include "MixAll.h"
 #include "ProcessQueueImpl.h"
@@ -483,10 +483,10 @@ void DefaultMQPushConsumerImpl::setThrottle(const std::string& topic, uint32_t t
 
 #ifdef ENABLE_TRACING
 nostd::shared_ptr<trace::Tracer> DefaultMQPushConsumerImpl::getTracer() {
-  if (nullptr == client_instance_) {
+  if (nullptr == client_manager_) {
     return nostd::shared_ptr<trace::Tracer>(nullptr);
   }
-  return client_instance_->getTracer();
+  return client_manager_->getTracer();
 }
 #endif
 

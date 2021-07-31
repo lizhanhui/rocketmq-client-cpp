@@ -1,6 +1,6 @@
 #include "Client.h"
 #include "ClientConfigImpl.h"
-#include "ClientInstance.h"
+#include "ClientManager.h"
 #include "ClientResourceBundle.h"
 #include "InvocationContext.h"
 #include "rocketmq/MQMessageExt.h"
@@ -48,7 +48,7 @@ public:
                 std::chrono::milliseconds delay) override;
 
 protected:
-  ClientInstancePtr client_instance_;
+  ClientManagerPtr client_instance_;
   std::atomic<State> state_;
 
   absl::flat_hash_map<std::string, TopicRouteDataPtr> topic_route_table_ GUARDED_BY(topic_route_table_mtx_);

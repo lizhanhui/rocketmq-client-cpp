@@ -1,5 +1,5 @@
 #include "ClientImpl.h"
-#include "ClientManager.h"
+#include "ClientManagerFactory.h"
 #include "InvocationContext.h"
 #include "LoggerImpl.h"
 #include "MessageAccessor.h"
@@ -22,7 +22,7 @@ void ClientImpl::start() {
     return;
   }
 
-  client_instance_ = ClientManager::getInstance().getClientInstance(*this);
+  client_instance_ = ClientManagerFactory::getInstance().getClientManager(*this);
   client_instance_->start();
   bool update_name_server_list = false;
   {

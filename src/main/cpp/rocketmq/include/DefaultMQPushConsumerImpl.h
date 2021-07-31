@@ -6,7 +6,7 @@
 
 #include "ClientConfigImpl.h"
 #include "ClientImpl.h"
-#include "ClientInstance.h"
+#include "ClientManagerImpl.h"
 #include "ConsumeMessageService.h"
 #include "FilterExpression.h"
 #include "ProcessQueue.h"

@@ -7,7 +7,7 @@
 #include <set>
 
 #include "Assignment.h"
-#include "ClientInstance.h"
+#include "ClientManager.h"
 #include "FilterExpression.h"
 #include "MixAll.h"
 #include "ProcessQueue.h"
@@ -55,7 +55,7 @@ class PushConsumer;
 class ProcessQueueImpl : virtual public ProcessQueue {
 public:
   ProcessQueueImpl(MQMessageQueue message_queue, FilterExpression filter_expression, ConsumeMessageType consume_type,
-                   std::weak_ptr<PushConsumer> consumer, std::shared_ptr<ClientInstance> client_instance);
+                   std::weak_ptr<PushConsumer> consumer, std::shared_ptr<ClientManager> client_instance);
 
   ~ProcessQueueImpl() override;
 
@@ -71,7 +71,7 @@ public:
 
   std::weak_ptr<PushConsumer> getConsumer() override;
 
-  std::shared_ptr<ClientInstance> getClientInstance() override;
+  std::shared_ptr<ClientManager> getClientManager() override;
 
   void receiveMessage() override;
 
@@ -155,7 +155,7 @@ private:
   std::string simple_name_;
 
   std::weak_ptr<PushConsumer> consumer_;
-  std::shared_ptr<ClientInstance> client_instance_;
+  std::shared_ptr<ClientManager> client_manager_;
 
   std::shared_ptr<ReceiveMessageCallback> receive_callback_;
 

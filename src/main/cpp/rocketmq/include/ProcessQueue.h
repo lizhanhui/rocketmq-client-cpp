@@ -10,7 +10,7 @@ ROCKETMQ_NAMESPACE_BEGIN
 
 class PushConsumer;
 
-class ClientInstance;
+class ClientManager;
 
 class ProcessQueue {
 public:
@@ -46,7 +46,7 @@ public:
 
   virtual bool shouldThrottle() const = 0;
 
-  virtual std::shared_ptr<ClientInstance> getClientInstance() = 0;
+  virtual std::shared_ptr<ClientManager> getClientManager() = 0;
 
   virtual void syncIdleState() = 0;
 

@@ -1,6 +1,6 @@
 #include "TopicPublishInfo.h"
 #include "LogInterceptorFactory.h"
-#include "RpcClient.h"
+#include "RpcClientImpl.h"
 #include "Signature.h"
 #include "TlsHelper.h"
 #include "rocketmq/MQMessageQueue.h"
@@ -64,7 +64,7 @@ protected:
   ClientConfigImpl client_config_;
   absl::flat_hash_map<std::string, std::string> metadata_;
   std::shared_ptr<grpc::CompletionQueue> completion_queue_;
-  std::shared_ptr<rocketmq::RpcClientImpl> client_;
+  std::shared_ptr<RpcClientImpl> client_;
   CredentialsProviderPtr credentials_provider_;
   std::shared_ptr<grpc::experimental::CertificateProviderInterface> certificate_provider_;
   grpc::experimental::TlsChannelCredentialsOptions tls_channel_credential_option_;

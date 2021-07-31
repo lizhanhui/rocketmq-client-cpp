@@ -39,7 +39,7 @@ public:
   absl::Duration getIoTimeout() const override;
   void setIoTimeout(absl::Duration timeout);
 
-  absl::Duration getLongPollingTimeout() const { return long_polling_timeout_; }
+  absl::Duration getLongPollingTimeout() const override { return long_polling_timeout_; }
 
   void setLongPollingTimeout(absl::Duration timeout) { long_polling_timeout_ = timeout; }
 

@@ -1,8 +1,8 @@
 #include "AsyncReceiveMessageCallback.h"
-#include "PushConsumer.h"
-#include "LoggerImpl.h"
+#include "ClientManagerImpl.h"
 #include "ConsumeMessageType.h"
-#include "ClientInstance.h"
+#include "LoggerImpl.h"
+#include "PushConsumer.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -111,7 +111,7 @@ void AsyncReceiveMessageCallback::receiveMessageLater() {
     return;
   }
 
-  auto client_instance = process_queue->getClientInstance();
+  auto client_instance = process_queue->getClientManager();
   std::weak_ptr<AsyncReceiveMessageCallback> receive_callback_weak_ptr(shared_from_this());
 
   auto task = [receive_callback_weak_ptr]() {
