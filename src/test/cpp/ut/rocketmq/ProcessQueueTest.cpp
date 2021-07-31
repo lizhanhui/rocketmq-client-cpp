@@ -177,6 +177,7 @@ TEST_F(ProcessQueueTest, testTake2) {
       messages.emplace_back(message);
     }
     process_queue_->cacheMessages(messages);
+    EXPECT_EQ(threshold_quantity_, process_queue_->cachedMessagesSize());
   }
 
   std::vector<MQMessageExt> msgs;
@@ -184,6 +185,7 @@ TEST_F(ProcessQueueTest, testTake2) {
   EXPECT_FALSE(msgs.empty());
   EXPECT_EQ(tag_, msgs.begin()->getTags());
   EXPECT_EQ(topic_, msgs.begin()->getTopic());
+  EXPECT_EQ(threshold_quantity_ - consume_batch_size_, process_queue_->cachedMessagesSize());
 }
 
 ROCKETMQ_NAMESPACE_END
