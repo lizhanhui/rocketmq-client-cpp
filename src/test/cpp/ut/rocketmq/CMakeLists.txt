@@ -54,8 +54,10 @@ target_link_libraries(ut_send_callbacks
 add_executable(consume_message_service ConsumeStandardMessageServiceTest.cpp)
 target_link_libraries(consume_message_service
         PRIVATE
+            base_mocks
             gtest_main
-            rocketmq_library)
+            rocketmq_library
+            rocketmq_mocks)
 
 add_executable(filter_expression_test FilterExpressionTest.cpp)
 target_link_libraries(filter_expression_test

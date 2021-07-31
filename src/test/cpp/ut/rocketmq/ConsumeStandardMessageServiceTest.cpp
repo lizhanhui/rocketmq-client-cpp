@@ -1,10 +1,11 @@
 #include "ConsumeMessageService.h"
 #include "MessageListenerMock.h"
+#include "ProcessQueueMock.h"
 #include "PushConsumerMock.h"
-#include "gtest/gtest.h"
-#include <memory>
 #include "grpc/grpc.h"
 #include "rocketmq/MQMessageExt.h"
+#include "gtest/gtest.h"
+#include <memory>
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -13,21 +14,36 @@ public:
   void SetUp() override {
     grpc_init();
     consumer_ = std::make_shared<testing::NiceMock<PushConsumerMock>>();
+    ON_CALL(*consumer_, consumeBatchSize).WillByDefault(testing::Return(consume_batch_size_));
+    ON_CALL(*consumer_, messageModel).WillByDefault(testing::Return(MessageModel::CLUSTERING));
     std::weak_ptr<PushConsumer> consumer = std::dynamic_pointer_cast<PushConsumer>(consumer_);
     consume_standard_message_service_ =
         std::make_shared<ConsumeStandardMessageService>(consumer, thread_count_, &message_listener_);
-    
+    process_queue_ = std::make_shared<testing::NiceMock<ProcessQueueMock>>();
+    ON_CALL(*process_queue_, topic).WillByDefault(testing::Return(topic_));
+    auto mock_take = [this](uint32_t batch_size, std::vector<MQMessageExt>& messages) {
+      MQMessageExt message;
+      message.setTopic(topic_);
+      message.setTags(tag_);
+      message.setBody(body_);
+      messages.emplace_back(message);
+      return false;
+    };
+    ON_CALL(*process_queue_, take).WillByDefault(testing::Invoke(mock_take));
   }
 
-  void TearDown() override {
-    grpc_shutdown();
-  }
+  void TearDown() override { grpc_shutdown(); }
 
 protected:
   int thread_count_{2};
+  std::string topic_{"TestTopic"};
+  std::string tag_{"TagA"};
+  std::string body_{"Body Content"};
+  uint32_t consume_batch_size_;
   std::shared_ptr<testing::NiceMock<PushConsumerMock>> consumer_;
   std::shared_ptr<ConsumeStandardMessageService> consume_standard_message_service_;
   testing::NiceMock<StandardMessageListenerMock> message_listener_;
+  std::shared_ptr<testing::NiceMock<ProcessQueueMock>> process_queue_;
 };
 
 TEST_F(ConsumeStandardMessageServiceTest, testStartAndShutdown) {
@@ -38,9 +54,7 @@ TEST_F(ConsumeStandardMessageServiceTest, testStartAndShutdown) {
 TEST_F(ConsumeStandardMessageServiceTest, testConsume) {
   consume_standard_message_service_->start();
 
-  auto callback = [](const std::function<void(ProcessQueueSharedPtr)>& cb) {
-    
-  };
+  auto callback = [this](const std::function<void(ProcessQueueSharedPtr)>& cb) { cb(process_queue_); };
 
   ON_CALL(*consumer_, iterateProcessQueue).WillByDefault(testing::Invoke(callback));
 
@@ -56,14 +70,14 @@ TEST_F(ConsumeStandardMessageServiceTest, testConsume) {
     cv.SignalAll();
     return ConsumeMessageResult::SUCCESS;
   };
-  
-  ON_CALL(message_listener_, consumeMessage).WillByDefault(testing::Invoke(listener_cb));
 
-  while (!completed) {
-    absl::MutexLock lk(&mtx);
-    cv.WaitWithDeadline(&mtx, absl::Now() + absl::Seconds(3));
-  }
-  
+  ON_CALL(message_listener_, consumeMessage).WillByDefault(testing::Invoke(listener_cb));
+  EXPECT_CALL(*process_queue_, release).Times(testing::AtLeast(1));
+  EXPECT_CALL(*consumer_, ack).Times(testing::AtLeast(1));
+
+  absl::MutexLock lk(&mtx);
+  cv.WaitWithDeadline(&mtx, absl::Now() + absl::Seconds(3));
+
   consume_standard_message_service_->shutdown();
 }
 
