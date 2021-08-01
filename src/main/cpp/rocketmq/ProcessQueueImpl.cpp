@@ -93,7 +93,8 @@ void ProcessQueueImpl::popMessage() {
   syncIdleState();
   SPDLOG_DEBUG("Try to pop message from {}", message_queue_.simpleName());
   client_manager_->receiveMessage(message_queue_.serviceAddress(), metadata, request,
-                                  absl::ToChronoMilliseconds(consumer_client->getIoTimeout()), receive_callback_);
+                                  absl::ToChronoMilliseconds(consumer_client->getLongPollingTimeout()),
+                                  receive_callback_);
 }
 
 void ProcessQueueImpl::pullMessage() {

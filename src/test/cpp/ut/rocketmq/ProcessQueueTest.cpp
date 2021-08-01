@@ -266,20 +266,21 @@ TEST_F(ProcessQueueTest, testOffset) {
   EXPECT_EQ(threshold_quantity_, offset);
 }
 
-TEST_F(ProcessQueueTest, testReceiveMessage) {
-  ON_CALL(*consumer_, tenantId).WillByDefault(testing::ReturnRef(tenant_id_));
-  ON_CALL(*consumer_, arn).WillByDefault(testing::ReturnRef(arn_));
-  ON_CALL(*consumer_, credentialsProvider).WillByDefault(testing::Return(credentials_provider_));
-  ON_CALL(*consumer_, region).WillByDefault(testing::ReturnRef(region_));
-  ON_CALL(*consumer_, serviceName).WillByDefault(testing::ReturnRef(service_name_));
-  ON_CALL(*consumer_, clientId).WillByDefault(testing::Return(client_id_));
-  ON_CALL(*consumer_, getGroupName).WillByDefault(testing::ReturnRef(group_name_));
+TEST_F(ProcessQueueTest, testReceiveMessage_POP) {
+  EXPECT_CALL(*consumer_, tenantId).WillRepeatedly(testing::ReturnRef(tenant_id_));
+  EXPECT_CALL(*consumer_, arn).WillRepeatedly(testing::ReturnRef(arn_));
+  EXPECT_CALL(*consumer_, credentialsProvider).WillRepeatedly(testing::Return(credentials_provider_));
+  EXPECT_CALL(*consumer_, region).WillRepeatedly(testing::ReturnRef(region_));
+  EXPECT_CALL(*consumer_, serviceName).WillRepeatedly(testing::ReturnRef(service_name_));
+  EXPECT_CALL(*consumer_, clientId).WillRepeatedly(testing::Return(client_id_));
+  EXPECT_CALL(*consumer_, getGroupName).WillRepeatedly(testing::ReturnRef(group_name_));
+  EXPECT_CALL(*consumer_, getLongPollingTimeout).WillRepeatedly(testing::Return(absl::Seconds(3)));
 
   absl::flat_hash_map<std::string, FilterExpression> filter_table;
   filter_table.insert({topic_, filter_expression_});
 
-  ON_CALL(*consumer_, getTopicFilterExpressionTable).WillByDefault(testing::Return(filter_table));
-  ON_CALL(*consumer_, receiveBatchSize).WillByDefault(testing::Return(threshold_quantity_));
+  EXPECT_CALL(*consumer_, getTopicFilterExpressionTable).WillRepeatedly(testing::Return(filter_table));
+  EXPECT_CALL(*consumer_, receiveBatchSize).WillRepeatedly(testing::Return(threshold_quantity_));
 
   auto receive_message_mock = [this](const std::string& target, const Metadata& metadata,
                                      const ReceiveMessageRequest& request, std::chrono::milliseconds timeout,
@@ -302,6 +303,37 @@ TEST_F(ProcessQueueTest, testReceiveMessage) {
   EXPECT_CALL(*client_manager_, receiveMessage)
       .Times(testing::AtLeast(1))
       .WillRepeatedly(testing::Invoke(receive_message_mock));
+  process_queue_->receiveMessage();
+}
+
+TEST_F(ProcessQueueTest, testReceiveMessage_Pull) {
+  process_queue_->consumeType(ConsumeMessageType::PULL);
+  EXPECT_CALL(*consumer_, tenantId).WillRepeatedly(testing::ReturnRef(tenant_id_));
+  EXPECT_CALL(*consumer_, arn).WillRepeatedly(testing::ReturnRef(arn_));
+  EXPECT_CALL(*consumer_, credentialsProvider).WillRepeatedly(testing::Return(credentials_provider_));
+  EXPECT_CALL(*consumer_, region).WillRepeatedly(testing::ReturnRef(region_));
+  EXPECT_CALL(*consumer_, serviceName).WillRepeatedly(testing::ReturnRef(service_name_));
+  EXPECT_CALL(*consumer_, clientId).WillRepeatedly(testing::Return(client_id_));
+  EXPECT_CALL(*consumer_, getGroupName).WillRepeatedly(testing::ReturnRef(group_name_));
+  EXPECT_CALL(*consumer_, getLongPollingTimeout).WillRepeatedly(testing::Return(absl::Seconds(3)));
+
+  absl::flat_hash_map<std::string, FilterExpression> filter_table;
+  filter_table.insert({topic_, filter_expression_});
+
+  EXPECT_CALL(*consumer_, getTopicFilterExpressionTable).WillRepeatedly(testing::Return(filter_table));
+  EXPECT_CALL(*consumer_, receiveBatchSize).WillRepeatedly(testing::Return(threshold_quantity_));
+
+  auto invocation_context = new InvocationContext<PullMessageResponse>();
+  auto pull_message_mock = [&](const std::string& target_host, const Metadata& metadata,
+                               const PullMessageRequest& request, std::chrono::milliseconds timeout,
+                               const std::function<void(const InvocationContext<PullMessageResponse>*)>& cb) {
+    cb(invocation_context);
+  };
+
+  EXPECT_CALL(*client_manager_, pullMessage)
+      .Times(testing::AtLeast(1))
+      .WillRepeatedly(testing::Invoke(pull_message_mock));
+  EXPECT_CALL(*client_manager_, processPullResult);
   process_queue_->receiveMessage();
 }
 
