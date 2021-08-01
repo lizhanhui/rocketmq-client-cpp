@@ -48,6 +48,7 @@ protected:
   std::string access_secret_{"secret"};
   std::shared_ptr<CredentialsProvider> credentials_provider_;
   std::string group_name_{"TestGroup"};
+  std::string client_id_{"Client-0"};
   std::string broker_name_{"broker-a"};
   std::string region_{"cn-hangzhou"};
   std::string service_name_{"MQ"};
@@ -271,6 +272,15 @@ TEST_F(ProcessQueueTest, testReceiveMessage) {
   ON_CALL(*consumer_, credentialsProvider).WillByDefault(testing::Return(credentials_provider_));
   ON_CALL(*consumer_, region).WillByDefault(testing::ReturnRef(region_));
   ON_CALL(*consumer_, serviceName).WillByDefault(testing::ReturnRef(service_name_));
+  ON_CALL(*consumer_, clientId).WillByDefault(testing::Return(client_id_));
+  ON_CALL(*consumer_, getGroupName).WillByDefault(testing::ReturnRef(group_name_));
+
+  absl::flat_hash_map<std::string, FilterExpression> filter_table;
+  filter_table.insert({topic_, filter_expression_});
+
+  ON_CALL(*consumer_, getTopicFilterExpressionTable).WillByDefault(testing::Return(filter_table));
+  ON_CALL(*consumer_, receiveBatchSize).WillByDefault(testing::Return(threshold_quantity_));
+
   auto receive_message_mock = [this](const std::string& target, const Metadata& metadata,
                                      const ReceiveMessageRequest& request, std::chrono::milliseconds timeout,
                                      std::shared_ptr<ReceiveMessageCallback>& cb) {
