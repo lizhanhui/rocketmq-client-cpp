@@ -12,6 +12,7 @@ public:
     client_manager_ = std::make_shared<ClientManagerImpl>(arn_);
     client_manager_->start();
     rpc_client_ = std::make_shared<testing::NiceMock<RpcClientMock>>();
+    ON_CALL(*rpc_client_, ok).WillByDefault(testing::Return(true));
     client_manager_->addRpcClient(target_host_, rpc_client_);
   }
 
