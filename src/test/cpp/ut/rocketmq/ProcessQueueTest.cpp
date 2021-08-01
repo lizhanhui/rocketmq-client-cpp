@@ -42,6 +42,7 @@ public:
   void TearDown() override {}
 
 protected:
+  std::string tenant_id_{"tenant-0"};
   std::string access_key_{"ak"};
   std::string access_secret_{"secret"};
   std::string group_name_{"TestGroup"};
@@ -262,6 +263,8 @@ TEST_F(ProcessQueueTest, testOffset) {
 }
 
 TEST_F(ProcessQueueTest, testReceiveMessage) {
+  ON_CALL(*consumer_, tenantId).WillByDefault(testing::ReturnRef(tenant_id_));
+
   auto receive_message_mock = [this](const std::string& target, const Metadata& metadata,
                                  const ReceiveMessageRequest& request, std::chrono::milliseconds timeout,
                                  std::shared_ptr<ReceiveMessageCallback>& cb) {
