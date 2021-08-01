@@ -11,6 +11,7 @@
 #include "absl/memory/memory.h"
 #include "absl/synchronization/mutex.h"
 #include "apache/rocketmq/v1/definition.pb.h"
+#include "rocketmq/CredentialsProvider.h"
 #include "rocketmq/MQMessageExt.h"
 #include "gtest/gtest.h"
 #include <chrono>
@@ -30,7 +31,7 @@ public:
     message_queue_.setBrokerName(broker_name_);
     message_queue_.setQueueId(queue_id_);
     client_manager_ = std::make_shared<testing::NiceMock<ClientManagerMock>>();
-    auto credentials_provider = std::make_shared<StaticCredentialsProvider>(access_key_, access_secret_);
+    credentials_provider_ = std::make_shared<StaticCredentialsProvider>(access_key_, access_secret_);
     consumer_ = std::make_shared<testing::NiceMock<PushConsumerMock>>();
     auto consumer = std::dynamic_pointer_cast<PushConsumer>(consumer_);
     process_queue_ = std::make_shared<ProcessQueueImpl>(message_queue_, filter_expression_, ConsumeMessageType::POP,
@@ -45,9 +46,11 @@ protected:
   std::string tenant_id_{"tenant-0"};
   std::string access_key_{"ak"};
   std::string access_secret_{"secret"};
+  std::shared_ptr<CredentialsProvider> credentials_provider_;
   std::string group_name_{"TestGroup"};
   std::string broker_name_{"broker-a"};
   std::string region_{"cn-hangzhou"};
+  std::string service_name_{"MQ"};
   int queue_id_{0};
   std::string topic_{"TestTopic"};
   std::string service_address_{"ipv4:10.0.0.1:10911"};
@@ -264,10 +267,13 @@ TEST_F(ProcessQueueTest, testOffset) {
 
 TEST_F(ProcessQueueTest, testReceiveMessage) {
   ON_CALL(*consumer_, tenantId).WillByDefault(testing::ReturnRef(tenant_id_));
-
+  ON_CALL(*consumer_, arn).WillByDefault(testing::ReturnRef(arn_));
+  ON_CALL(*consumer_, credentialsProvider).WillByDefault(testing::Return(credentials_provider_));
+  ON_CALL(*consumer_, region).WillByDefault(testing::ReturnRef(region_));
+  ON_CALL(*consumer_, serviceName).WillByDefault(testing::ReturnRef(service_name_));
   auto receive_message_mock = [this](const std::string& target, const Metadata& metadata,
-                                 const ReceiveMessageRequest& request, std::chrono::milliseconds timeout,
-                                 std::shared_ptr<ReceiveMessageCallback>& cb) {
+                                     const ReceiveMessageRequest& request, std::chrono::milliseconds timeout,
+                                     std::shared_ptr<ReceiveMessageCallback>& cb) {
     ReceiveMessageResult receive_message_result;
     receive_message_result.status_ = ReceiveMessageStatus::OK;
 
