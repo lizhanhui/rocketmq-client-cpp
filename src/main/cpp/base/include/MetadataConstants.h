@@ -3,7 +3,7 @@
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-class Metadata {
+class MetadataConstants {
 public:
   static const char* REQUEST_ID_KEY;
   static const char* TENANT_ID_KEY;

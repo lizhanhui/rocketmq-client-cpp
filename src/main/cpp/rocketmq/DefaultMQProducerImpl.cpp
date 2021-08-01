@@ -1,7 +1,7 @@
 #include "DefaultMQProducerImpl.h"
 #include "MessageAccessor.h"
 #include "MessageGroupQueueSelector.h"
-#include "Metadata.h"
+#include "MetadataConstants.h"
 #include "MixAll.h"
 #include "Protocol.h"
 #include "SendCallbacks.h"

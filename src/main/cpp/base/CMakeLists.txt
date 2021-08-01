@@ -4,7 +4,7 @@ target_sources(base_obj
             GHttpClient.cpp
             HostInfo.cpp
             MessageAccessor.cpp
-            Metadata.cpp
+            MetadataConstants.cpp
             MixAll.cpp
             MQMessage.cpp
             MQMessageExt.cpp

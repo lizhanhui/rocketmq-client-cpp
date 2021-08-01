@@ -11,7 +11,7 @@
 #include "LogInterceptorFactory.h"
 #include "LoggerImpl.h"
 #include "MessageAccessor.h"
-#include "Metadata.h"
+#include "MetadataConstants.h"
 #include "MixAll.h"
 #include "Partition.h"
 #include "Protocol.h"
@@ -147,8 +147,8 @@ void ClientManagerImpl::assignLabels(Histogram& histogram) {
 }
 
 void ClientManagerImpl::healthCheck(
-    const std::string& target_host, const absl::flat_hash_map<std::string, std::string>& metadata,
-    const HealthCheckRequest& request, std::chrono::milliseconds timeout,
+    const std::string& target_host, const Metadata& metadata, const HealthCheckRequest& request,
+    std::chrono::milliseconds timeout,
     const std::function<void(const std::string&, const InvocationContext<HealthCheckResponse>*)>& cb) {
   {
     absl::MutexLock lk(&rpc_clients_mtx_);
@@ -303,8 +303,7 @@ void ClientManagerImpl::cleanOfflineRpcClients() {
   }
 }
 
-void ClientManagerImpl::heartbeat(const std::string& target_host,
-                                  const absl::flat_hash_map<std::string, std::string>& metadata,
+void ClientManagerImpl::heartbeat(const std::string& target_host, const Metadata& metadata,
                                   const HeartbeatRequest& request, std::chrono::milliseconds timeout,
                                   const std::function<void(bool, const HeartbeatResponse&)>& cb) {
   auto client = getRpcClient(target_host, true);
@@ -388,8 +387,7 @@ void ClientManagerImpl::pollCompletionQueue() {
   SPDLOG_INFO("pollCompletionQueue completed and quit");
 }
 
-bool ClientManagerImpl::send(const std::string& target_host,
-                             const absl::flat_hash_map<std::string, std::string>& metadata, SendMessageRequest& request,
+bool ClientManagerImpl::send(const std::string& target_host, const Metadata& metadata, SendMessageRequest& request,
                              SendCallback* cb) {
   assert(cb);
   SPDLOG_DEBUG("Prepare to send message to {} asynchronously", target_host);
@@ -543,8 +541,7 @@ void ClientManagerImpl::addClientObserver(std::weak_ptr<Client> client) {
   clients_.emplace_back(std::move(client));
 }
 
-void ClientManagerImpl::resolveRoute(const std::string& target_host,
-                                     const absl::flat_hash_map<std::string, std::string>& metadata,
+void ClientManagerImpl::resolveRoute(const std::string& target_host, const Metadata& metadata,
                                      const QueryRouteRequest& request, std::chrono::milliseconds timeout,
                                      const std::function<void(bool, const TopicRouteDataPtr&)>& cb) {
 
@@ -633,8 +630,7 @@ void ClientManagerImpl::resolveRoute(const std::string& target_host,
   client->asyncQueryRoute(request, invocation_context);
 }
 
-void ClientManagerImpl::queryAssignment(const std::string& target,
-                                        const absl::flat_hash_map<std::string, std::string>& metadata,
+void ClientManagerImpl::queryAssignment(const std::string& target, const Metadata& metadata,
                                         const QueryAssignmentRequest& request, std::chrono::milliseconds timeout,
                                         const std::function<void(bool, const QueryAssignmentResponse&)>& cb) {
   SPDLOG_DEBUG("Prepare to send query assignment request to broker[address={}]", target);
@@ -667,8 +663,7 @@ void ClientManagerImpl::queryAssignment(const std::string& target,
   client->asyncQueryAssignment(request, invocation_context);
 }
 
-void ClientManagerImpl::receiveMessage(const std::string& target_host,
-                                       const absl::flat_hash_map<std::string, std::string>& metadata,
+void ClientManagerImpl::receiveMessage(const std::string& target_host, const Metadata& metadata,
                                        const ReceiveMessageRequest& request, std::chrono::milliseconds timeout,
                                        std::shared_ptr<ReceiveMessageCallback>& cb) {
   SPDLOG_DEBUG("Prepare to pop message from {} asynchronously. Request: {}", target_host, request.DebugString());
@@ -1006,9 +1001,8 @@ Scheduler& ClientManagerImpl::getScheduler() { return scheduler_; }
 
 TopAddressing& ClientManagerImpl::topAddressing() { return top_addressing_; }
 
-void ClientManagerImpl::ack(const std::string& target, const absl::flat_hash_map<std::string, std::string>& metadata,
-                            const AckMessageRequest& request, std::chrono::milliseconds timeout,
-                            const std::function<void(bool)>& cb) {
+void ClientManagerImpl::ack(const std::string& target, const Metadata& metadata, const AckMessageRequest& request,
+                            std::chrono::milliseconds timeout, const std::function<void(bool)>& cb) {
   std::string target_host(target.data(), target.length());
   SPDLOG_DEBUG("Prepare to ack message against {} asynchronously. AckMessageRequest: {}", target_host,
                request.DebugString());
@@ -1035,8 +1029,7 @@ void ClientManagerImpl::ack(const std::string& target, const absl::flat_hash_map
   client->asyncAck(request, invocation_context);
 }
 
-void ClientManagerImpl::nack(const std::string& target_host,
-                             const absl::flat_hash_map<std::string, std::string>& metadata,
+void ClientManagerImpl::nack(const std::string& target_host, const Metadata& metadata,
                              const NackMessageRequest& request, std::chrono::milliseconds timeout,
                              const std::function<void(bool)>& completion_callback) {
   RpcClientSharedPtr client = getRpcClient(target_host);
@@ -1061,8 +1054,7 @@ void ClientManagerImpl::nack(const std::string& target_host,
   client->asyncNack(request, invocation_context);
 }
 
-void ClientManagerImpl::endTransaction(const std::string& target_host,
-                                       const absl::flat_hash_map<std::string, std::string>& metadata,
+void ClientManagerImpl::endTransaction(const std::string& target_host, const Metadata& metadata,
                                        const EndTransactionRequest& request, std::chrono::milliseconds timeout,
                                        const std::function<void(bool, const EndTransactionResponse&)>& cb) {
   RpcClientSharedPtr client = getRpcClient(target_host);
@@ -1102,9 +1094,8 @@ void ClientManagerImpl::endTransaction(const std::string& target_host,
 }
 
 void ClientManagerImpl::multiplexingCall(
-    const std::string& target_host, const absl::flat_hash_map<std::string, std::string>& metadata,
-    const MultiplexingRequest& request, std::chrono::milliseconds timeout,
-    const std::function<void(const InvocationContext<MultiplexingResponse>*)>& cb) {
+    const std::string& target_host, const Metadata& metadata, const MultiplexingRequest& request,
+    std::chrono::milliseconds timeout, const std::function<void(const InvocationContext<MultiplexingResponse>*)>& cb) {
   RpcClientSharedPtr client = getRpcClient(target_host);
   if (!client) {
     SPDLOG_WARN("No RPC client for {}", target_host);
@@ -1140,8 +1131,7 @@ void ClientManagerImpl::multiplexingCall(
   client->asyncMultiplexingCall(request, invocation_context);
 }
 
-void ClientManagerImpl::queryOffset(const std::string& target_host,
-                                    const absl::flat_hash_map<std::string, std::string>& metadata,
+void ClientManagerImpl::queryOffset(const std::string& target_host, const Metadata& metadata,
                                     const QueryOffsetRequest& request, std::chrono::milliseconds timeout,
                                     const std::function<void(bool, const QueryOffsetResponse&)>& cb) {
   auto client = getRpcClient(target_host);
@@ -1174,8 +1164,7 @@ void ClientManagerImpl::queryOffset(const std::string& target_host,
   client->asyncQueryOffset(request, invocation_context);
 }
 
-void ClientManagerImpl::pullMessage(const std::string& target_host,
-                                    const absl::flat_hash_map<std::string, std::string>& metadata,
+void ClientManagerImpl::pullMessage(const std::string& target_host, const Metadata& metadata,
                                     const PullMessageRequest& request, std::chrono::milliseconds timeout,
                                     const std::function<void(const InvocationContext<PullMessageResponse>*)>& cb) {
   auto client = getRpcClient(target_host);
@@ -1195,8 +1184,8 @@ void ClientManagerImpl::pullMessage(const std::string& target_host,
 }
 
 void ClientManagerImpl::forwardMessageToDeadLetterQueue(
-    const std::string& target_host, const absl::flat_hash_map<std::string, std::string>& metadata,
-    const ForwardMessageToDeadLetterQueueRequest& request, std::chrono::milliseconds timeout,
+    const std::string& target_host, const Metadata& metadata, const ForwardMessageToDeadLetterQueueRequest& request,
+    std::chrono::milliseconds timeout,
     const std::function<void(const InvocationContext<ForwardMessageToDeadLetterQueueResponse>*)>& cb) {
   auto client = getRpcClient(target_host);
   if (!client) {

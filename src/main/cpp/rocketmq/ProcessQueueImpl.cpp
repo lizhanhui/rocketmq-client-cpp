@@ -1,6 +1,6 @@
 #include "ProcessQueueImpl.h"
 #include "ClientManagerImpl.h"
-#include "Metadata.h"
+#include "MetadataConstants.h"
 #include "Protocol.h"
 #include "PushConsumer.h"
 #include "Signature.h"
