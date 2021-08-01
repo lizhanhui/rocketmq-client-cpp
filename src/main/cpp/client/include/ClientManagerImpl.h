@@ -42,6 +42,11 @@ ROCKETMQ_NAMESPACE_BEGIN
 
 class ClientManagerImpl : virtual public ClientManager, public std::enable_shared_from_this<ClientManagerImpl> {
 public:
+  /**
+   * @brief Construct a new Client Manager Impl object
+   * TODO: Make it protected such that instantiating it through ClientManagerFactory only, achieving Singleton effectively.
+   * @param arn Abstract resource namespace, in which this client manager lives.
+   */
   explicit ClientManagerImpl(std::string arn);
 
   ~ClientManagerImpl() override;
