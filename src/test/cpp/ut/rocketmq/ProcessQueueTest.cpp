@@ -6,6 +6,7 @@
 #include "ProcessQueueImpl.h"
 #include "PushConsumerMock.h"
 #include "ReceiveMessageCallbackMock.h"
+#include "ReceiveMessageResult.h"
 #include "RpcClientMock.h"
 #include "absl/memory/memory.h"
 #include "absl/synchronization/mutex.h"
@@ -258,6 +259,31 @@ TEST_F(ProcessQueueTest, testOffset) {
 
   EXPECT_TRUE(process_queue_->committedOffset(offset));
   EXPECT_EQ(threshold_quantity_, offset);
+}
+
+TEST_F(ProcessQueueTest, testReceiveMessage) {
+  auto receive_message_mock = [this](const std::string& target, const Metadata& metadata,
+                                 const ReceiveMessageRequest& request, std::chrono::milliseconds timeout,
+                                 std::shared_ptr<ReceiveMessageCallback>& cb) {
+    ReceiveMessageResult receive_message_result;
+    receive_message_result.status_ = ReceiveMessageStatus::OK;
+
+    for (size_t i = 0; i < threshold_quantity_; i++) {
+      MQMessageExt message;
+      message.setTopic(topic_);
+      message.setTags(tag_);
+      message.setBody(message_body_);
+      MessageAccessor::setQueueId(message, queue_id_);
+      MessageAccessor::setQueueOffset(message, i);
+      receive_message_result.messages_.emplace_back(message);
+    }
+    cb->onSuccess(receive_message_result);
+  };
+
+  EXPECT_CALL(*client_manager_, receiveMessage)
+      .Times(testing::AtLeast(1))
+      .WillRepeatedly(testing::Invoke(receive_message_mock));
+  process_queue_->receiveMessage();
 }
 
 ROCKETMQ_NAMESPACE_END
