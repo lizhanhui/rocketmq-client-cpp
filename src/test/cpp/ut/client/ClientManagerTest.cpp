@@ -67,6 +67,7 @@ TEST_F(ClientManagerTest, testResolveRoute) {
     absl::MutexLock lk(&mtx);
     cv.WaitWithDeadline(&mtx, absl::Now() + absl::Seconds(3));
   }
+  EXPECT_TRUE(completed);
 }
 
 ROCKETMQ_NAMESPACE_END
