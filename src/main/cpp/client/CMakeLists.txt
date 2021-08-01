@@ -2,8 +2,8 @@ add_library(client_obj OBJECT)
 target_sources(client_obj
         PRIVATE
             ClientConfigImpl.cpp
-        ClientManagerImpl.cpp
-        ClientManagerFactory.cpp
+            ClientManagerImpl.cpp
+            ClientManagerFactory.cpp
             LogInterceptorFactory.cpp
             LogInterceptor.cpp
             TopicAssignmentInfo.cpp
