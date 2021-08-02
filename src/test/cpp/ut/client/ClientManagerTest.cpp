@@ -87,6 +87,13 @@ TEST_F(ClientManagerTest, testQueryAssignment) {
   EXPECT_CALL(*rpc_client_, asyncQueryAssignment)
       .Times(testing::AtLeast(1))
       .WillRepeatedly(testing::Invoke(mock_query_assignment));
+  Metadata metadata;
+  QueryAssignmentRequest request;
+  bool callback_invoked = false;
+  auto callback = [&](bool ok, const QueryAssignmentResponse& response) { callback_invoked = true; };
+
+  client_manager_->queryAssignment(target_host_, metadata, request, absl::ToChronoMilliseconds(io_timeout_), callback);
+
   {
     absl::MutexLock lk(&mtx);
     if (!completed) {
@@ -94,6 +101,7 @@ TEST_F(ClientManagerTest, testQueryAssignment) {
     }
   }
   EXPECT_TRUE(completed);
+  EXPECT_TRUE(callback_invoked);
 }
 
 ROCKETMQ_NAMESPACE_END
