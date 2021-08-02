@@ -1,5 +1,6 @@
 #include "TopAddressing.h"
 #include "HttpClientMock.h"
+#include "grpc/grpc.h"
 #include "gtest/gtest.h"
 #include <memory>
 #include <string>
@@ -11,6 +12,8 @@ ROCKETMQ_NAMESPACE_BEGIN
 class TopAddressingTest : public testing::Test {
 public:
   void SetUp() override {
+    grpc_init();
+    top_addressing_ = absl::make_unique<TopAddressing>();
     auto http_client_ = absl::make_unique<testing::NiceMock<HttpClientMock>>();
     auto mock_get =
         [](HttpProtocol protocol, const std::string& host, std::uint16_t port, const std::string& path,
@@ -21,13 +24,13 @@ public:
           cb(200, headers, body);
         };
     ON_CALL(*http_client_, get).WillByDefault(testing::Invoke(mock_get));
-    top_addressing_.injectHttpClient(std::move(http_client_));
+    top_addressing_->injectHttpClient(std::move(http_client_));
   }
 
-  void TearDown() override {}
+  void TearDown() override { grpc_shutdown(); }
 
 protected:
-  TopAddressing top_addressing_;
+  std::unique_ptr<TopAddressing> top_addressing_;
 };
 
 TEST_F(TopAddressingTest, testFetchNameServerAddresses) {
@@ -40,7 +43,7 @@ TEST_F(TopAddressingTest, testFetchNameServerAddresses) {
     completed = true;
     cv.SignalAll();
   };
-  top_addressing_.fetchNameServerAddresses(callback);
+  top_addressing_->fetchNameServerAddresses(callback);
   {
     absl::MutexLock lk(&mtx);
     cv.WaitWithDeadline(&mtx, absl::Now() + absl::Seconds(3));
