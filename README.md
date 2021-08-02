@@ -59,27 +59,31 @@ if "com_google_googletest" not in native.existing_rules():
    ```
 
 ### IDE
-[Clangd](https://clangd.llvm.org/) is a really nice code completion tool. Clangd requires compile_commands.json to work properly. 
-To generate the file, we need clone another repository along with the current one.
+[Visual Studio Code](https://code.visualstudio.com/) + [Clangd](https://clangd.llvm.org/) is the recommended development toolset. 
+1. VSCode + Clangd
+   [Clangd](https://clangd.llvm.org/) is a really nice code completion tool. Clangd requires compile_commands.json to work properly. 
+   To generate the file, we need clone another repository along with the current one.
 
-```
-git clone git@github.com:grailbio/bazel-compilation-database.git
-```
-From current repository root,
+   ```
+   git clone git@github.com:grailbio/bazel-compilation-database.git
+   ```
+   From current repository root,
 
-```
-../bazel-compilation-database/generate.sh
-```
-Once the script completes, you should have compile_commands.json file in the repository root directory.
+   ```
+   ../bazel-compilation-database/generate.sh
+   ```
+   Once the script completes, you should have compile_commands.json file in the repository root directory.
 
-[Visual Studio Code](https://code.visualstudio.com/) + [Clangd](https://clangd.llvm.org/) is the recommended development toolset. LLVM project has an extension for [clangd](https://marketplace.visualstudio.com/items?itemName=llvm-vs-code-extensions.vscode-clangd). Please install it from the extension market. 
+   LLVM project has an extension for [clangd](https://marketplace.visualstudio.com/items?itemName=llvm-vs-code-extensions.vscode-clangd). Please install it from the extension market. 
 
-The following configuration entries should be appended to your VSC settings file.
-```text
-    "C_Cpp.intelliSenseEngine": "Disabled",
-    "C_Cpp.autocomplete": "Disabled", // So you don't get autocomplete from both extensions.
-    "C_Cpp.errorSquiggles": "Disabled", // So you don't get error squiggles from both extensions (clangd's seem to be more reliable anyway).
-    "clangd.path": "/Users/lizhanhui/usr/clangd_12.0.0/bin/clangd",
-    "clangd.arguments": ["-log=verbose", "-pretty", "--background-index"],
-    "clangd.onConfigChanged": "restart",
-```
+   The following configuration entries should be appended to your VSC settings file.
+   ```text
+      "C_Cpp.intelliSenseEngine": "Disabled",
+      "C_Cpp.autocomplete": "Disabled", // So you don't get autocomplete from both extensions.
+      "C_Cpp.errorSquiggles": "Disabled", // So you don't get error squiggles from both extensions (clangd's seem to be more reliable anyway).
+      "clangd.path": "/Users/lizhanhui/usr/clangd_12.0.0/bin/clangd",
+      "clangd.arguments": ["-log=verbose", "-pretty", "--background-index"],
+      "clangd.onConfigChanged": "restart",
+   ```
+2. CLion + Bazel Plugin
+   Bazel also has a plugin for CLion.
