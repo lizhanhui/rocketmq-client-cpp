@@ -70,4 +70,30 @@ TEST_F(ClientManagerTest, testResolveRoute) {
   EXPECT_TRUE(completed);
 }
 
+TEST_F(ClientManagerTest, testQueryAssignment) {
+
+  bool completed = false;
+  absl::Mutex mtx;
+  absl::CondVar cv;
+
+  auto mock_query_assignment = [&](const QueryAssignmentRequest& request,
+                                   InvocationContext<QueryAssignmentResponse>* invocation_context) {
+    absl::MutexLock lk(&mtx);
+    completed = true;
+    cv.SignalAll();
+    invocation_context->onCompletion(true);
+  };
+
+  EXPECT_CALL(*rpc_client_, asyncQueryAssignment)
+      .Times(testing::AtLeast(1))
+      .WillRepeatedly(testing::Invoke(mock_query_assignment));
+  {
+    absl::MutexLock lk(&mtx);
+    if (!completed) {
+      cv.WaitWithDeadline(&mtx, absl::Now() + absl::Seconds(3));
+    }
+  }
+  EXPECT_TRUE(completed);
+}
+
 ROCKETMQ_NAMESPACE_END
