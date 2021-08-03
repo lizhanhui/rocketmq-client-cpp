@@ -36,7 +36,7 @@ public:
   SendResult send(const MQMessage& message, const MQMessageQueue& message_queue);
   SendResult send(const MQMessage& message, MessageQueueSelector* selector, void* arg);
 
-  SendResult send(const MQMessage& message, MessageQueueSelector* selector, void* arg, int auto_retry_times);
+  SendResult send(const MQMessage& message, MessageQueueSelector* selector, void* arg, int max_attempts);
 
   void send(const MQMessage& message, SendCallback* callback);
   void send(const MQMessage& message, const MQMessageQueue& message_queue, SendCallback* callback);
@@ -122,6 +122,8 @@ private:
                        TransactionState resolution);
 
   void isolatedEndpoints(absl::flat_hash_set<std::string>& endpoints) LOCKS_EXCLUDED(isolated_endpoints_mtx_);
+
+  MQMessageQueue withServiceAddress(const MQMessageQueue& message_queue);
 };
 
 ROCKETMQ_NAMESPACE_END

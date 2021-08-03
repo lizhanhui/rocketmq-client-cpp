@@ -134,7 +134,7 @@ SendResult ProducerImpl::send(const MQMessage& message, const std::string& messa
 
 SendResult ProducerImpl::send(const MQMessage& message, const MQMessageQueue& message_queue) {
   ensureRunning();
-  std::vector<MQMessageQueue> message_queue_list{message_queue};
+  std::vector<MQMessageQueue> message_queue_list{withServiceAddress(message_queue)};
   AwaitSendCallback callback;
   send0(message, &callback, message_queue_list, max_attempt_times_);
   callback.await();
@@ -160,8 +160,7 @@ SendResult ProducerImpl::send(const MQMessage& message, MessageQueueSelector* se
   THROW_MQ_EXCEPTION(MQClientException, callback.errorMessage(), FAILED_TO_SEND_MESSAGE);
 }
 
-SendResult ProducerImpl::send(const MQMessage& message, MessageQueueSelector* selector, void* arg,
-                              int max_attempt_times) {
+SendResult ProducerImpl::send(const MQMessage& message, MessageQueueSelector* selector, void* arg, int max_attempts) {
   ensureRunning();
   std::vector<MQMessageQueue> message_queue_list;
   executeMessageQueueSelector(message, selector, arg, message_queue_list);
@@ -169,7 +168,7 @@ SendResult ProducerImpl::send(const MQMessage& message, MessageQueueSelector* se
     THROW_MQ_EXCEPTION(MQClientException, "No topic route available", NO_TOPIC_ROUTE_INFO);
   }
   AwaitSendCallback callback;
-  send0(message, &callback, message_queue_list, max_attempt_times);
+  send0(message, &callback, message_queue_list, max_attempts);
   callback.await();
   if (callback) {
     return callback.sendResult();
@@ -196,7 +195,7 @@ void ProducerImpl::send(const MQMessage& message, SendCallback* cb) {
 
 void ProducerImpl::send(const MQMessage& message, const MQMessageQueue& message_queue, SendCallback* callback) {
   ensureRunning();
-  std::vector<MQMessageQueue> message_queue_list{message_queue};
+  std::vector<MQMessageQueue> message_queue_list{withServiceAddress(message_queue)};
   send0(message, callback, message_queue_list, max_attempt_times_);
 }
 
@@ -238,7 +237,7 @@ void ProducerImpl::sendOneway(const MQMessage& message) {
 
 void ProducerImpl::sendOneway(const MQMessage& message, const MQMessageQueue& message_queue) {
   ensureRunning();
-  std::vector<MQMessageQueue> list{message_queue};
+  std::vector<MQMessageQueue> list{withServiceAddress(message_queue)};
   send0(message, onewaySendCallback(), list, 1);
 }
 
@@ -354,6 +353,31 @@ bool ProducerImpl::endTransaction0(const std::string& target, const std::string&
 void ProducerImpl::isolatedEndpoints(absl::flat_hash_set<std::string>& endpoints) {
   absl::MutexLock lk(&isolated_endpoints_mtx_);
   endpoints.insert(isolated_endpoints_.begin(), isolated_endpoints_.end());
+}
+
+MQMessageQueue ProducerImpl::withServiceAddress(const MQMessageQueue& message_queue) {
+  if (!message_queue.serviceAddress().empty()) {
+    return message_queue;
+  }
+
+  if (message_queue.getTopic().empty() || message_queue.getBrokerName().empty() || message_queue.getQueueId() < 0) {
+    MQClientException e("Message queue is illegal", MESSAGE_QUEUE_ILLEGAL, __FILE__, __LINE__);
+    throw e;
+  }
+
+  std::vector<MQMessageQueue> list = getTopicMessageQueueInfo(message_queue.getTopic());
+  for (const auto& item : list) {
+    if (item == message_queue) {
+      return item;
+    }
+  }
+
+  if (list.empty()) {
+    MQClientException e("No topic route available", NO_TOPIC_ROUTE_INFO, __FILE__, __LINE__);
+    throw e;
+  } else {
+    return *list.begin();
+  }
 }
 
 bool ProducerImpl::isEndpointIsolated(const std::string& target) {
