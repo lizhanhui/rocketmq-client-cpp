@@ -53,7 +53,7 @@ void ProducerImpl::ensureRunning() const {
 void ProducerImpl::validate(const MQMessage& message) {}
 
 std::string ProducerImpl::wrapSendMessageRequest(const MQMessage& message, SendMessageRequest& request,
-                                                          const MQMessageQueue& message_queue) {
+                                                 const MQMessageQueue& message_queue) {
   request.mutable_message()->mutable_topic()->set_arn(arn_);
   request.mutable_message()->mutable_topic()->set_name(message.getTopic());
 
@@ -161,7 +161,7 @@ SendResult ProducerImpl::send(const MQMessage& message, MessageQueueSelector* se
 }
 
 SendResult ProducerImpl::send(const MQMessage& message, MessageQueueSelector* selector, void* arg,
-                                       int max_attempt_times) {
+                              int max_attempt_times) {
   ensureRunning();
   std::vector<MQMessageQueue> message_queue_list;
   executeMessageQueueSelector(message, selector, arg, message_queue_list);
@@ -194,15 +194,13 @@ void ProducerImpl::send(const MQMessage& message, SendCallback* cb) {
   asyncPublishInfo(message.getTopic(), callback);
 }
 
-void ProducerImpl::send(const MQMessage& message, const MQMessageQueue& message_queue,
-                                 SendCallback* callback) {
+void ProducerImpl::send(const MQMessage& message, const MQMessageQueue& message_queue, SendCallback* callback) {
   ensureRunning();
   std::vector<MQMessageQueue> message_queue_list{message_queue};
   send0(message, callback, message_queue_list, max_attempt_times_);
 }
 
-void ProducerImpl::send(const MQMessage& message, MessageQueueSelector* selector, void* arg,
-                                 SendCallback* callback) {
+void ProducerImpl::send(const MQMessage& message, MessageQueueSelector* selector, void* arg, SendCallback* callback) {
   ensureRunning();
 
   auto cb = [this, message, selector, callback, arg](const TopicPublishInfoPtr& ptr) {
@@ -265,7 +263,7 @@ void ProducerImpl::setLocalTransactionStateChecker(LocalTransactionStateCheckerP
 }
 
 void ProducerImpl::send0(const MQMessage& message, SendCallback* callback, std::vector<MQMessageQueue> list,
-                                  int max_attempt_times) {
+                         int max_attempt_times) {
   assert(callback);
   if (list.empty()) {
     MQClientException e("Topic route not found", -1, __FILE__, __LINE__);
@@ -306,7 +304,7 @@ void ProducerImpl::send0(const MQMessage& message, SendCallback* callback, std::
 }
 
 bool ProducerImpl::endTransaction0(const std::string& target, const std::string& message_id,
-                                            const std::string& transaction_id, TransactionState resolution) {
+                                   const std::string& transaction_id, TransactionState resolution) {
 
   EndTransactionRequest request;
   request.set_message_id(message_id);
@@ -380,18 +378,17 @@ std::unique_ptr<TransactionImpl> ProducerImpl::prepare(const MQMessage& message)
   }
 }
 
-bool ProducerImpl::commit(const std::string& message_id, const std::string& transaction_id,
-                                   const std::string& target) {
+bool ProducerImpl::commit(const std::string& message_id, const std::string& transaction_id, const std::string& target) {
   return endTransaction0(target, message_id, transaction_id, TransactionState::COMMIT);
 }
 
 bool ProducerImpl::rollback(const std::string& message_id, const std::string& transaction_id,
-                                     const std::string& target) {
+                            const std::string& target) {
   return endTransaction0(target, message_id, transaction_id, TransactionState::ROLLBACK);
 }
 
 void ProducerImpl::asyncPublishInfo(const std::string& topic,
-                                             const std::function<void(const TopicPublishInfoPtr&)>& cb) {
+                                    const std::function<void(const TopicPublishInfoPtr&)>& cb) {
   TopicPublishInfoPtr ptr;
   {
     absl::MutexLock lock(&topic_publish_info_mtx_);
@@ -440,8 +437,8 @@ TopicPublishInfoPtr ProducerImpl::getPublishInfo(const std::string& topic) {
   return topic_publish_info;
 }
 
-bool ProducerImpl::executeMessageQueueSelector(const MQMessage& message, MessageQueueSelector* selector,
-                                                        void* arg, std::vector<MQMessageQueue>& result) {
+bool ProducerImpl::executeMessageQueueSelector(const MQMessage& message, MessageQueueSelector* selector, void* arg,
+                                               std::vector<MQMessageQueue>& result) {
   TopicPublishInfoPtr publish_info;
   absl::Mutex mtx;
   absl::CondVar cv;
@@ -469,7 +466,7 @@ bool ProducerImpl::executeMessageQueueSelector(const MQMessage& message, Message
 }
 
 void ProducerImpl::takeMessageQueuesRoundRobin(const TopicPublishInfoPtr& publish_info,
-                                                        std::vector<MQMessageQueue>& message_queues, int number) {
+                                               std::vector<MQMessageQueue>& message_queues, int number) {
   assert(publish_info);
   absl::flat_hash_set<std::string> isolated;
   isolatedEndpoints(isolated);
@@ -508,8 +505,7 @@ void ProducerImpl::prepareHeartbeatData(HeartbeatRequest& request) {
   request.mutable_heartbeats()->Add(std::move(entry));
 }
 
-void ProducerImpl::resolveOrphanedTransactionalMessage(const std::string& transaction_id,
-                                                                const MQMessageExt& message) {
+void ProducerImpl::resolveOrphanedTransactionalMessage(const std::string& transaction_id, const MQMessageExt& message) {
   if (transaction_state_checker_) {
     TransactionState state = transaction_state_checker_->checkLocalTransactionState(message);
     const std::string& target_host = MessageAccessor::targetEndpoint(message);
