@@ -19,12 +19,11 @@
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-class DefaultMQProducerImpl : virtual public ClientImpl,
-                              public std::enable_shared_from_this<DefaultMQProducerImpl> {
+class ProducerImpl : virtual public ClientImpl, public std::enable_shared_from_this<ProducerImpl> {
 public:
-  explicit DefaultMQProducerImpl(std::string group_name);
+  explicit ProducerImpl(std::string group_name);
 
-  ~DefaultMQProducerImpl() override;
+  ~ProducerImpl() override;
 
   void prepareHeartbeatData(HeartbeatRequest& request) override;
 
