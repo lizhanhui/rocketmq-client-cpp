@@ -26,9 +26,7 @@ public:
     grpc_init();
     client_manager_ = std::make_shared<testing::NiceMock<ClientManagerMock>>();
     ClientManagerFactory::getInstance().addClientManager(arn_, client_manager_);
-
     ON_CALL(*client_manager_, getScheduler).WillByDefault(testing::ReturnRef(scheduler_));
-
     client_ = std::make_shared<TestClientImpl>(group_);
   }
 
@@ -51,6 +49,11 @@ TEST_F(ClientImplTest, testBasic) {
   std::string once{"10.0.0.1:9876"};
   std::string then{"10.0.0.1:9876;10.0.0.2:9876"};
   absl::flat_hash_map<std::string, std::string> header;
+
+  bool completed = false;
+  absl::Mutex mtx;
+  absl::CondVar cv;
+
   int http_status = 200;
   auto once_cb =
       [&](HttpProtocol protocol, const std::string& host, std::uint16_t port, const std::string& path,
@@ -59,12 +62,28 @@ TEST_F(ClientImplTest, testBasic) {
   auto then_cb =
       [&](HttpProtocol protocol, const std::string& host, std::uint16_t port, const std::string& path,
           const std::function<void(int, const absl::flat_hash_map<std::string, std::string>&, const std::string&)>&
-              cb) { cb(http_status, header, then); };
+              cb) {
+        cb(http_status, header, then);
+        absl::MutexLock lk(&mtx);
+        completed = true;
+        cv.SignalAll();
+      };
 
   EXPECT_CALL(*http_client, get).WillOnce(testing::Invoke(once_cb)).WillRepeatedly(testing::Invoke(then_cb));
   top_addressing_.injectHttpClient(std::move(http_client));
 
   ON_CALL(*client_manager_, topAddressing).WillByDefault(testing::ReturnRef(top_addressing_));
+
+  client_->start();
+  {
+    absl::MutexLock lk(&mtx);
+    if (!completed) {
+      cv.WaitWithDeadline(&mtx, absl::Now() + absl::Seconds(3));
+    }
+  }
+  EXPECT_TRUE(completed);
+
+  client_->shutdown();
 }
 
 ROCKETMQ_NAMESPACE_END
