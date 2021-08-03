@@ -1,6 +1,7 @@
 #include "PushConsumerImpl.h"
 #include "ClientManagerFactory.h"
 #include "ClientManagerMock.h"
+#include "rocketmq/MQMessageExt.h"
 #include "rocketmq/RocketMQ.h"
 #include "gtest/gtest.h"
 #include <memory>
@@ -20,10 +21,46 @@ class PushConsumerImplTest : public testing::Test {
 protected:
   std::string arn_{"arn:mq://test"};
   std::string group_{"CID_test"};
+  std::string topic_{"Topic0"};
+  std::string tag_{"TagA"};
+  std::string key_{"key-0"};
+  std::string message_body_{"Message Body Content"};
+  int delay_level_{1};
   std::shared_ptr<testing::NiceMock<ClientManagerMock>> client_manager_;
   std::shared_ptr<PushConsumerImpl> push_consumer_;
 };
 
-TEST_F(PushConsumerImplTest, testAck) {}
+TEST_F(PushConsumerImplTest, testAck) {
+  auto ack_cb = [](const std::string& target_host, const Metadata& metadata, const AckMessageRequest& request,
+                   std::chrono::milliseconds timeout, const std::function<void(bool)>& cb) { cb(true); };
+
+  EXPECT_CALL(*client_manager_, ack).Times(testing::AtLeast(1)).WillRepeatedly(testing::Invoke(ack_cb));
+
+  bool completed = false;
+  absl::Mutex mtx;
+  absl::CondVar cv;
+  auto callback = [&](bool ok) {
+    absl::MutexLock lk(&mtx);
+    completed = true;
+    cv.SignalAll();
+  };
+
+  MQMessageExt message;
+  message.setTopic(topic_);
+  message.setBody(message_body_);
+  message.setTags(tag_);
+  message.setKey(key_);
+  message.setDelayTimeLevel(delay_level_);
+  
+  push_consumer_->ack(message, callback);
+
+  {
+    absl::MutexLock lk(&mtx);
+    if (!completed) {
+      cv.WaitWithDeadline(&mtx, absl::Now() + absl::Seconds(3));
+    }
+  }
+  EXPECT_TRUE(completed);
+}
 
 ROCKETMQ_NAMESPACE_END
