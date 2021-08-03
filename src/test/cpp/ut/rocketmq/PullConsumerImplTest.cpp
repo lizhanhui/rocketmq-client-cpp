@@ -59,7 +59,7 @@ TEST_F(PullConsumerImplTest, testStartShutdown) {
 }
 
 TEST_F(PullConsumerImplTest, testQueuesFor) {
-
+  pull_consumer_->start();
   auto mock_resolve_route = [this](const std::string& target_host, const Metadata& metadata,
                                    const QueryRouteRequest& request, std::chrono::milliseconds timeout,
                                    const std::function<void(bool, const TopicRouteDataPtr& ptr)>& cb) {
@@ -73,6 +73,7 @@ TEST_F(PullConsumerImplTest, testQueuesFor) {
   std::future<std::vector<MQMessageQueue>> future = pull_consumer_->queuesFor(topic_);
   auto queues = future.get();
   EXPECT_FALSE(queues.empty());
+  pull_consumer_->shutdown();
 }
 
 ROCKETMQ_NAMESPACE_END
