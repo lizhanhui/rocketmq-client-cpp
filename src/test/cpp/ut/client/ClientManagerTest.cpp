@@ -1,8 +1,8 @@
 #include "ClientManagerImpl.h"
 #include "ReceiveMessageCallbackMock.h"
 #include "RpcClientMock.h"
-#include "gtest/gtest.h"
 #include "apache/rocketmq/v1/definition.pb.h"
+#include "gtest/gtest.h"
 #include <memory>
 
 ROCKETMQ_NAMESPACE_BEGIN
@@ -324,6 +324,36 @@ TEST_F(ClientManagerTest, processPullResult) {
   EXPECT_EQ(msg.getBody(), message_body_);
 }
 
-TEST_F(ClientManagerTest, processPopResult) {}
+TEST_F(ClientManagerTest, testHealthCheck) {
+  bool completed = false;
+  absl::Mutex mtx;
+  absl::CondVar cv;
+
+  auto mock_health_check = [&](const HealthCheckRequest& request,
+                               InvocationContext<HealthCheckResponse>* invocation_context) {
+    absl::MutexLock lk(&mtx);
+    completed = true;
+    cv.SignalAll();
+    invocation_context->onCompletion(true);
+  };
+
+  EXPECT_CALL(*rpc_client_, asyncHealthCheck)
+      .Times(testing::AtLeast(1))
+      .WillRepeatedly(testing::Invoke(mock_health_check));
+  HealthCheckRequest request;
+  bool callback_invoked = false;
+  auto callback = [&](const std::string& target_host,
+                      const InvocationContext<HealthCheckResponse>* invocation_context) { callback_invoked = true; };
+
+  client_manager_->healthCheck(target_host_, metadata_, request, absl::ToChronoMilliseconds(io_timeout_), callback);
+  {
+    absl::MutexLock lk(&mtx);
+    if (!completed) {
+      cv.WaitWithDeadline(&mtx, absl::Now() + absl::Seconds(3));
+    }
+  }
+  EXPECT_TRUE(completed);
+  EXPECT_TRUE(callback_invoked);
+}
 
 ROCKETMQ_NAMESPACE_END

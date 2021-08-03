@@ -201,8 +201,6 @@ private:
   void processPopResult(const grpc::ClientContext& client_context, const ReceiveMessageResponse& response,
                         ReceiveMessageResult& result, const std::string& target_host);
 
-  bool active();
-
   void doHeartbeat();
 
   void pollCompletionQueue();

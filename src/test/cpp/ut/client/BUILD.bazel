@@ -46,3 +46,14 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ]
 )
+
+cc_test(
+    name = "client_manager_factory_test",
+    srcs = [
+        "ClientManagerFactoryTest.cpp",
+    ],
+    deps = [
+        "//src/main/cpp/client/mocks:client_mocks",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
