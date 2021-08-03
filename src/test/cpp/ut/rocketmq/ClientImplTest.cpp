@@ -73,7 +73,7 @@ TEST_F(ClientImplTest, testBasic) {
   top_addressing_.injectHttpClient(std::move(http_client));
 
   ON_CALL(*client_manager_, topAddressing).WillByDefault(testing::ReturnRef(top_addressing_));
-
+  client_->arn(arn_);
   client_->start();
   {
     absl::MutexLock lk(&mtx);
