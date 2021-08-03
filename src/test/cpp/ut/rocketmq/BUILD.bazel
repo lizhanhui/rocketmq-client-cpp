@@ -169,6 +169,7 @@ cc_test(
         "PushConsumerImplTest.cpp",
     ],
     deps = [
+        "//src/main/cpp/client/mocks:client_mocks",
         "//src/main/cpp/rocketmq:rocketmq_library",
         "@com_google_googletest//:gtest_main",
     ]
