@@ -28,27 +28,8 @@ public:
     ClientManagerFactory::getInstance().addClientManager(arn_, client_manager_);
 
     ON_CALL(*client_manager_, getScheduler).WillByDefault(testing::ReturnRef(scheduler_));
-    ON_CALL(*client_manager_, topAddressing).WillByDefault(testing::ReturnRef(top_addressing_));
 
     client_ = std::make_shared<TestClientImpl>(group_);
-
-    auto http_client = absl::make_unique<HttpClientMock>();
-
-    std::string once{"10.0.0.1:9876"};
-    std::string then{"10.0.0.1:9876;10.0.0.2:9876"};
-    absl::flat_hash_map<std::string, std::string> header;
-    int http_status = 200;
-    auto once_cb =
-        [&](HttpProtocol protocol, const std::string& host, std::uint16_t port, const std::string& path,
-            const std::function<void(int, const absl::flat_hash_map<std::string, std::string>&, const std::string&)>&
-                cb) { cb(http_status, header, once); };
-    auto then_cb =
-        [&](HttpProtocol protocol, const std::string& host, std::uint16_t port, const std::string& path,
-            const std::function<void(int, const absl::flat_hash_map<std::string, std::string>&, const std::string&)>&
-                cb) { cb(http_status, header, then); };
-
-    EXPECT_CALL(*http_client, get).WillOnce(testing::Invoke(once_cb)).WillRepeatedly(testing::Invoke(then_cb));
-    top_addressing_.injectHttpClient(std::move(http_client));
   }
 
   void TearDown() override { grpc_shutdown(); }
@@ -58,12 +39,32 @@ protected:
   std::string group_{"Group-0"};
   std::shared_ptr<testing::NiceMock<ClientManagerMock>> client_manager_;
   Scheduler scheduler_;
-  TopAddressing top_addressing_;
   std::shared_ptr<TestClientImpl> client_;
 };
 
 TEST_F(ClientImplTest, testBasic) {
-  
+
+  TopAddressing top_addressing_;
+
+  auto http_client = absl::make_unique<HttpClientMock>();
+
+  std::string once{"10.0.0.1:9876"};
+  std::string then{"10.0.0.1:9876;10.0.0.2:9876"};
+  absl::flat_hash_map<std::string, std::string> header;
+  int http_status = 200;
+  auto once_cb =
+      [&](HttpProtocol protocol, const std::string& host, std::uint16_t port, const std::string& path,
+          const std::function<void(int, const absl::flat_hash_map<std::string, std::string>&, const std::string&)>&
+              cb) { cb(http_status, header, once); };
+  auto then_cb =
+      [&](HttpProtocol protocol, const std::string& host, std::uint16_t port, const std::string& path,
+          const std::function<void(int, const absl::flat_hash_map<std::string, std::string>&, const std::string&)>&
+              cb) { cb(http_status, header, then); };
+
+  EXPECT_CALL(*http_client, get).WillOnce(testing::Invoke(once_cb)).WillRepeatedly(testing::Invoke(then_cb));
+  top_addressing_.injectHttpClient(std::move(http_client));
+
+  ON_CALL(*client_manager_, topAddressing).WillByDefault(testing::ReturnRef(top_addressing_));
 }
 
 ROCKETMQ_NAMESPACE_END
