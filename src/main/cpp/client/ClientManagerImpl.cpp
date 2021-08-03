@@ -665,7 +665,7 @@ void ClientManagerImpl::queryAssignment(const std::string& target, const Metadat
 
 void ClientManagerImpl::receiveMessage(const std::string& target_host, const Metadata& metadata,
                                        const ReceiveMessageRequest& request, std::chrono::milliseconds timeout,
-                                       std::shared_ptr<ReceiveMessageCallback>& cb) {
+                                       const std::shared_ptr<ReceiveMessageCallback>& cb) {
   SPDLOG_DEBUG("Prepare to pop message from {} asynchronously. Request: {}", target_host, request.DebugString());
   RpcClientSharedPtr client = getRpcClient(target_host);
 
