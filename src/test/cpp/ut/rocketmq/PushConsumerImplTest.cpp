@@ -1,6 +1,7 @@
 #include "PushConsumerImpl.h"
 #include "ClientManagerFactory.h"
 #include "ClientManagerMock.h"
+#include "grpc/grpc.h"
 #include "rocketmq/MQMessageExt.h"
 #include "rocketmq/RocketMQ.h"
 #include "gtest/gtest.h"
@@ -10,15 +11,22 @@ ROCKETMQ_NAMESPACE_BEGIN
 
 class PushConsumerImplTest : public testing::Test {
   void SetUp() override {
+    grpc_init();
     client_manager_ = std::make_shared<testing::NiceMock<ClientManagerMock>>();
     ClientManagerFactory::getInstance().addClientManager(arn_, client_manager_);
     push_consumer_ = std::make_shared<PushConsumerImpl>(group_);
+    push_consumer_->arn(arn_);
+    push_consumer_->setNameServerList(name_server_list_);
     push_consumer_->start();
   }
 
-  void TearDown() override { push_consumer_->shutdown(); }
+  void TearDown() override {
+    push_consumer_->shutdown();
+    grpc_shutdown();
+  }
 
 protected:
+  std::vector<std::string> name_server_list_{"10.0.0.1:9876"};
   std::string arn_{"arn:mq://test"};
   std::string group_{"CID_test"};
   std::string topic_{"Topic0"};
@@ -51,7 +59,7 @@ TEST_F(PushConsumerImplTest, testAck) {
   message.setTags(tag_);
   message.setKey(key_);
   message.setDelayTimeLevel(delay_level_);
-  
+
   push_consumer_->ack(message, callback);
 
   {
