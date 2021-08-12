@@ -29,11 +29,12 @@ public:
 
   void init() override;
 
+  static const char* LOGGER_NAME;
+
 private:
   void init0();
 
-  template <typename T>
-  void setLevel(std::shared_ptr<T>& target, Level level) {
+  template <typename T> void setLevel(std::shared_ptr<T>& target, Level level) {
     if (!target) {
       return;
     }
@@ -58,7 +59,6 @@ private:
   }
 
   static const char* LOG_FILE;
-  static const char* LOGGER_NAME;
 
   Level level_{Level::Info};
   Level console_level_{Level::Warn};

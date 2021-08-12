@@ -1,4 +1,5 @@
 #include "rocketmq/Logger.h"
+#include "LoggerImpl.h"
 #include "rocketmq/RocketMQ.h"
 #include "spdlog/spdlog.h"
 #include "gtest/gtest.h"
@@ -13,6 +14,7 @@ TEST_F(LoggerTest, testLogger_Trace) {
   Logger& logger = getLogger();
   logger.setFileSize(log_file_size_);
   logger.setLevel(Level::Trace);
+  logger.setConsoleLevel(Level::Trace);
   logger.init();
   SPDLOG_ERROR("=========Trace===========");
   SPDLOG_TRACE("Should show up!");

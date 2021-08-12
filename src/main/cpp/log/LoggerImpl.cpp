@@ -41,7 +41,12 @@ void LoggerImpl::init() {
 void LoggerImpl::init0() {
   if (log_home_.empty()) {
     char* home = getenv(USER_HOME_ENV);
-    log_home_.append(home).append(LOG_FILE);
+    if (home) {
+      log_home_.append(home);
+    } else {
+      log_home_.append(fs::temp_directory_path().string());
+    }
+    log_home_.append(LOG_FILE);
   }
 
   // Create directories if necessary
@@ -53,6 +58,7 @@ void LoggerImpl::init0() {
       abort();
     }
   }
+  std::cout << "RocketMQ log files path: " << log_dir.c_str() << std::endl;
 
   if (pattern_.empty()) {
     pattern_ = DEFAULT_PATTERN;
