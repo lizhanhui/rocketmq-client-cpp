@@ -12,6 +12,7 @@
 
 #include <pwd.h>
 #include <unistd.h>
+#include "zlib.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -68,6 +69,13 @@ bool MixAll::validate(const MQMessage& message) {
 uint32_t MixAll::random(uint32_t left, uint32_t right) {
   static absl::BitGen gen;
   return absl::Uniform(gen, left, right);
+}
+
+bool MixAll::crc32(const std::string& data, std::string& digest) {
+  uLong crc = ::crc32(0L, reinterpret_cast<const Bytef*>(data.c_str()), data.length());
+  uint64_t big_endian = htonll(crc);
+  digest = hex(&big_endian, sizeof(big_endian));
+  return true;
 }
 
 bool MixAll::md5(const std::string& data, std::string& digest) {
