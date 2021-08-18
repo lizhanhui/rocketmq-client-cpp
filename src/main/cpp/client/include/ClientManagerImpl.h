@@ -28,7 +28,7 @@
 #include "src/cpp/server/thread_pool_interface.h"
 
 #ifdef ENABLE_TRACING
-#include "opentelemetry/exporters/otlp/otlp_exporter.h"
+#include "opentelemetry/exporters/otlp/otlp_grpc_exporter.h"
 #include "opentelemetry/sdk/trace/batch_span_processor.h"
 #include "opentelemetry/sdk/trace/tracer_provider.h"
 #include "opentelemetry/trace/provider.h"
