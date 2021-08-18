@@ -1,7 +1,6 @@
 """Load dependencies needed to compile and test the RocketMQ library as a 3rd-party consumer."""
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
 
 def rocketmq_deps():
     """Loads dependencies need to compile and test the RocketMQ library."""
@@ -92,9 +91,9 @@ def rocketmq_deps():
     if "com_github_opentelemetry" not in native.existing_rules():
         http_archive(
             name = "com_github_opentelemetry",
-            sha256 = "2b5b423096c6e486ec23e77d0d75b28e32f86e7cdf6e7560da686c71c69908d3",
-            strip_prefix = "opentelemetry-cpp-1.0.0-rc2",
+            sha256 = "24ba9b83f6cb8ba717ae30ebc570f5e8d0569008aee3c8b9a7ce6e4e1a5115b7",
+            strip_prefix = "opentelemetry-cpp-1.0.0-rc4",
             urls = [
-                "https://github.com/open-telemetry/opentelemetry-cpp/archive/refs/tags/v1.0.0-rc2.tar.gz",
+                "https://github.com/open-telemetry/opentelemetry-cpp/archive/refs/tags/v1.0.0-rc4.tar.gz",
             ],
         )
