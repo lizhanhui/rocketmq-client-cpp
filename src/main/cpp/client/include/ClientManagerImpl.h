@@ -58,6 +58,8 @@ public:
 
   static void assignLabels(Histogram& histogram);
 
+  std::shared_ptr<grpc::Channel> createChannel(const std::string& target_host) override;
+
   /**
    * Resolve route data from name server for the given topic.
    *
