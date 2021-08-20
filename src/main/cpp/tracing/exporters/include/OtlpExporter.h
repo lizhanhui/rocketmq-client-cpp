@@ -21,13 +21,9 @@ ROCKETMQ_NAMESPACE_BEGIN
 namespace collector = opentelemetry::proto::collector;
 namespace collector_trace = collector::trace::v1;
 
-enum class TraceMode : std::uint8_t {
-  OFF = 0,
-  DEBUG = 1,
-  GRPC = 2
-};
+enum class TraceMode : std::uint8_t { OFF = 0, DEBUG = 1, GRPC = 2 };
 
-class OtlpExporter : std::enable_shared_from_this<OtlpExporter> {
+class OtlpExporter : public std::enable_shared_from_this<OtlpExporter> {
 public:
   OtlpExporter(std::weak_ptr<ClientManager> client_manager, ClientConfig* client_config)
       : client_manager_(std::move(client_manager)), client_config_(client_config) {}
@@ -52,7 +48,7 @@ public:
 
   void traceMode(TraceMode mode) { mode_ = mode; }
 
-  TraceMode traceMode() const {return mode_;}
+  TraceMode traceMode() const { return mode_; }
 
 private:
   std::weak_ptr<ClientManager> client_manager_;

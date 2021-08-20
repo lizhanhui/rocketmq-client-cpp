@@ -22,7 +22,8 @@ namespace trace = opentelemetry::proto::trace::v1;
 namespace common = opentelemetry::proto::common::v1;
 
 void OtlpExporter::start() {
-  auto handler = absl::make_unique<OtlpExporterHandler>(shared_from_this());
+  std::shared_ptr<OtlpExporter> self = shared_from_this();
+  auto handler = absl::make_unique<OtlpExporterHandler>(self);
   handler->start();
   opencensus::trace::exporter::SpanExporter::RegisterHandler(std::move(handler));
 }
