@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ClientConfig.h"
 #include "ClientManager.h"
 #include "InvocationContext.h"
 #include "absl/container/flat_hash_map.h"
@@ -20,10 +21,16 @@ ROCKETMQ_NAMESPACE_BEGIN
 namespace collector = opentelemetry::proto::collector;
 namespace collector_trace = collector::trace::v1;
 
+enum class TraceMode : std::uint8_t {
+  OFF = 0,
+  DEBUG = 1,
+  GRPC = 2
+};
+
 class OtlpExporter : std::enable_shared_from_this<OtlpExporter> {
 public:
-  OtlpExporter(std::weak_ptr<ClientManager> client_manager, std::weak_ptr<ClientConfig> client_config)
-      : client_manager_(std::move(client_manager)), client_config_(std::move(client_config)) {}
+  OtlpExporter(std::weak_ptr<ClientManager> client_manager, ClientConfig* client_config)
+      : client_manager_(std::move(client_manager)), client_config_(client_config) {}
 
   void updateHosts(std::vector<std::string> hosts) LOCKS_EXCLUDED(hosts_mtx_) {
     absl::MutexLock lk(&hosts_mtx_);
@@ -41,14 +48,20 @@ public:
 
   std::weak_ptr<ClientManager>& clientManager() { return client_manager_; }
 
-  std::weak_ptr<ClientConfig>& clientConfig() { return client_config_; }
-  
+  ClientConfig* clientConfig() { return client_config_; }
+
+  void traceMode(TraceMode mode) { mode_ = mode; }
+
+  TraceMode traceMode() const {return mode_;}
+
 private:
   std::weak_ptr<ClientManager> client_manager_;
-  std::weak_ptr<ClientConfig> client_config_;
+  ClientConfig* client_config_;
 
   std::vector<std::string> hosts_;
   absl::Mutex hosts_mtx_;
+
+  TraceMode mode_{TraceMode::OFF};
 };
 
 class ExportClient {
@@ -91,7 +104,6 @@ private:
   void poll();
 
   void syncExportClients() LOCKS_EXCLUDED(clients_map_mtx_);
-  
 };
 
 ROCKETMQ_NAMESPACE_END

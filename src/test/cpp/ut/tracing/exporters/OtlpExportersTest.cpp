@@ -3,13 +3,31 @@
 #include "opencensus/trace/span.h"
 #include "rocketmq/RocketMQ.h"
 #include "gtest/gtest.h"
+#include "ClientConfigMock.h"
+#include "ClientManagerMock.h"
 #include <chrono>
+#include <memory>
 #include <thread>
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-TEST(OtlpExporterTest, testExport) {
-  OtlpExporter::registerHandlers();
+class OtlpExporterTest : public testing::Test {
+public:
+  void SetUp() override {
+    client_manager_ = std::make_shared<testing::NiceMock<ClientManagerMock>>();
+  }
+
+  void TearDown() override {}
+  
+protected:
+  std::shared_ptr<testing::NiceMock<ClientManagerMock>> client_manager_;
+  ClientConfigMock client_config_;
+};
+
+TEST_F(OtlpExporterTest, testExport) {
+  
+  auto exporter = std::make_shared<OtlpExporter>(client_manager_, &client_config_);
+  exporter->start();
   static opencensus::trace::AlwaysSampler sampler;
 
   auto span_generator = [&] {

@@ -85,10 +85,10 @@ void OtlpExporterHandler::syncExportClients() {
         if (client_manager) {
           auto channel = client_manager->createChannel(host);
           auto export_client = absl::make_unique<ExportClient>(completion_queue_, channel);
-          clients_map_.emplace(host, std::move(export_client));      
+          clients_map_.emplace(host, std::move(export_client));
         }
       }
-    } 
+    }
   }
 }
 
@@ -116,22 +116,30 @@ void OtlpExporterHandler::poll() {
 }
 
 void OtlpExporterHandler::Export(const std::vector<::opencensus::trace::exporter::SpanData>& spans) {
-  syncExportClients();
-  
-  absl::MutexLock lk(&clients_map_mtx_);
-  if (clients_map_.empty()) {
-    SPDLOG_WARN("No exporter client is available");
-    return;
-  }
-
   auto exp = exporter_.lock();
   if (!exp) {
     return;
   }
 
-  auto client_config = exp->clientConfig().lock();
-  if (!client_config) {
-    // MQ client has destructed.
+  switch (exp->traceMode()) {
+  case TraceMode::OFF:
+    return;
+  case TraceMode::DEBUG: {
+    {
+      for (const auto& span : spans) {
+        SPDLOG_INFO("{} --> {}: {}", absl::FormatTime(span.start_time()), absl::FormatTime(span.end_time()), span.name().data());
+      }
+    }
+    return;
+  }
+  case TraceMode::GRPC:
+    break;
+  }
+
+  syncExportClients();
+  absl::MutexLock lk(&clients_map_mtx_);
+  if (clients_map_.empty()) {
+    SPDLOG_WARN("No exporter client is available");
     return;
   }
 
@@ -261,7 +269,7 @@ void OtlpExporterHandler::Export(const std::vector<::opencensus::trace::exporter
   invocation_context->context.set_deadline(deadline);
 
   absl::flat_hash_map<std::string, std::string> metadata;
-  Signature::sign(client_config.get(), metadata);
+  Signature::sign(exp->clientConfig(), metadata);
   for (const auto& entry : metadata) {
     invocation_context->context.AddMetadata(entry.first, entry.second);
   }

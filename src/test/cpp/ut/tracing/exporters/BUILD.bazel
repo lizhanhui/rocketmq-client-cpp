@@ -6,6 +6,7 @@ cc_test(
         "OtlpExportersTest.cpp",
     ],
     deps = [
+        "//src/main/cpp/client/mocks:client_mocks",
         "//src/main/cpp/tracing/exporters:otlp_exporter",
         "@com_google_googletest//:gtest_main",
     ],
