@@ -20,12 +20,35 @@ ROCKETMQ_NAMESPACE_BEGIN
 namespace collector = opentelemetry::proto::collector;
 namespace collector_trace = collector::trace::v1;
 
-class OtlpExporter {
+class OtlpExporter : std::enable_shared_from_this<OtlpExporter> {
 public:
-  OtlpExporter() = delete;
+  OtlpExporter(std::weak_ptr<ClientManager> client_manager, std::weak_ptr<ClientConfig> client_config)
+      : client_manager_(std::move(client_manager)), client_config_(std::move(client_config)) {}
 
-  static void registerHandlers(std::shared_ptr<ClientManager> client_manager, std::weak_ptr<ClientConfig> client_config,
-                               std::vector<std::string> hosts);
+  void updateHosts(std::vector<std::string> hosts) LOCKS_EXCLUDED(hosts_mtx_) {
+    absl::MutexLock lk(&hosts_mtx_);
+    hosts_ = std::move(hosts);
+  }
+
+  void start();
+
+  void shutdown();
+
+  std::vector<std::string> hosts() LOCKS_EXCLUDED(hosts_mtx_) {
+    absl::MutexLock lk(&hosts_mtx_);
+    return hosts_;
+  }
+
+  std::weak_ptr<ClientManager>& clientManager() { return client_manager_; }
+
+  std::weak_ptr<ClientConfig>& clientConfig() { return client_config_; }
+  
+private:
+  std::weak_ptr<ClientManager> client_manager_;
+  std::weak_ptr<ClientConfig> client_config_;
+
+  std::vector<std::string> hosts_;
+  absl::Mutex hosts_mtx_;
 };
 
 class ExportClient {
@@ -43,8 +66,7 @@ private:
 
 class OtlpExporterHandler : public ::opencensus::trace::exporter::SpanExporter::Handler {
 public:
-  OtlpExporterHandler(std::shared_ptr<ClientManager> client_manager, std::weak_ptr<ClientConfig> client_config,
-                      std::vector<std::string> hosts);
+  OtlpExporterHandler(std::weak_ptr<OtlpExporter> exporter);
 
   void Export(const std::vector<::opencensus::trace::exporter::SpanData>& spans) override;
 
@@ -53,20 +75,23 @@ public:
   void shutdown();
 
 private:
-  std::shared_ptr<ClientManager> client_manager_;
-  std::weak_ptr<ClientConfig> client_config_;
-  std::vector<std::string> hosts_;
+  std::weak_ptr<OtlpExporter> exporter_;
   std::shared_ptr<CompletionQueue> completion_queue_;
   std::thread poll_thread_;
   absl::Mutex start_mtx_;
   absl::CondVar start_cv_;
 
-  absl::flat_hash_map<std::string, std::unique_ptr<ExportClient>> clients_map_;
+  absl::flat_hash_map<std::string, std::unique_ptr<ExportClient>> clients_map_ GUARDED_BY(clients_map_mtx_);
+  absl::Mutex clients_map_mtx_;
+
   thread_local static std::uint32_t round_robin_;
 
   std::atomic_bool stopped_{false};
 
   void poll();
+
+  void syncExportClients() LOCKS_EXCLUDED(clients_map_mtx_);
+  
 };
 
 ROCKETMQ_NAMESPACE_END

@@ -14,16 +14,15 @@
 #include <string>
 #include <thread>
 #include <utility>
+#include <vector>
 
 ROCKETMQ_NAMESPACE_BEGIN
 
 namespace trace = opentelemetry::proto::trace::v1;
 namespace common = opentelemetry::proto::common::v1;
 
-void OtlpExporter::registerHandlers(std::shared_ptr<ClientManager> client_manager,
-                                    std::weak_ptr<ClientConfig> client_config, std::vector<std::string> hosts) {
-  auto handler =
-      absl::make_unique<OtlpExporterHandler>(std::move(client_manager), std::move(client_config), std::move(hosts));
+void OtlpExporter::start() {
+  auto handler = absl::make_unique<OtlpExporterHandler>(shared_from_this());
   handler->start();
   opencensus::trace::exporter::SpanExporter::RegisterHandler(std::move(handler));
 }
@@ -43,16 +42,9 @@ void ExportClient::asyncExport(const collector_trace::ExportTraceServiceRequest&
                                               invocation_context);
 }
 
-OtlpExporterHandler::OtlpExporterHandler(std::shared_ptr<ClientManager> client_manager,
-                                         std::weak_ptr<ClientConfig> client_config, std::vector<std::string> hosts)
-    : client_manager_(std::move(client_manager)), client_config_(std::move(client_config)), hosts_(std::move(hosts)),
-      completion_queue_(std::make_shared<CompletionQueue>()) {
-
-  for (const auto& host : hosts_) {
-    auto channel = client_manager_->createChannel(host);
-    auto export_client = absl::make_unique<ExportClient>(completion_queue_, channel);
-    clients_map_.emplace(host, std::move(export_client));
-  }
+OtlpExporterHandler::OtlpExporterHandler(std::weak_ptr<OtlpExporter> exporter)
+    : exporter_(std::move(exporter)), completion_queue_(std::make_shared<CompletionQueue>()) {
+  auto exp = exporter_.lock();
 }
 
 void OtlpExporterHandler::start() {
@@ -67,6 +59,36 @@ void OtlpExporterHandler::shutdown() {
   stopped_.store(true, std::memory_order_relaxed);
   if (poll_thread_.joinable()) {
     poll_thread_.join();
+  }
+}
+
+void OtlpExporterHandler::syncExportClients() {
+  auto exp = exporter_.lock();
+  if (!exp) {
+    return;
+  }
+
+  std::vector<std::string>&& hosts = exp->hosts();
+  {
+    absl::MutexLock lk(&clients_map_mtx_);
+    for (auto i = clients_map_.begin(); i != clients_map_.end(); i++) {
+      if (std::none_of(hosts.cbegin(), hosts.cend(), [&](const std::string& host) { return i->first == host; })) {
+        clients_map_.erase(i++);
+      } else {
+        i++;
+      }
+    }
+
+    auto client_manager = exp->clientManager().lock();
+    for (const auto& host : hosts) {
+      if (!clients_map_.contains(host)) {
+        if (client_manager) {
+          auto channel = client_manager->createChannel(host);
+          auto export_client = absl::make_unique<ExportClient>(completion_queue_, channel);
+          clients_map_.emplace(host, std::move(export_client));      
+        }
+      }
+    } 
   }
 }
 
@@ -94,12 +116,20 @@ void OtlpExporterHandler::poll() {
 }
 
 void OtlpExporterHandler::Export(const std::vector<::opencensus::trace::exporter::SpanData>& spans) {
+  syncExportClients();
+  
+  absl::MutexLock lk(&clients_map_mtx_);
   if (clients_map_.empty()) {
     SPDLOG_WARN("No exporter client is available");
     return;
   }
 
-  auto client_config = client_config_.lock();
+  auto exp = exporter_.lock();
+  if (!exp) {
+    return;
+  }
+
+  auto client_config = exp->clientConfig().lock();
   if (!client_config) {
     // MQ client has destructed.
     return;
