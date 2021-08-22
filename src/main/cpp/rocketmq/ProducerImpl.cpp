@@ -316,6 +316,8 @@ void ProducerImpl::sendImpl(RetrySendCallback* callback) {
       span.AddAttribute(MixAll::SPAN_ATTRIBUTE_DELIVERY_TIMESTAMP,
                         absl::FormatTime(absl::FromChrono(message.deliveryTimestamp())));
     }
+    callback->message().traceContext(opencensus::trace::propagation::ToTraceParentHeader(span.context()));
+    callback->span() = span;
   }
   client_manager_->send(target, metadata, request, callback);
 }
@@ -335,7 +337,8 @@ void ProducerImpl::send0(const MQMessage& message, SendCallback* callback, std::
     return;
   }
   MQMessageQueue message_queue = list[0];
-  auto retry_callback = new RetrySendCallback(shared_from_this(), message, max_attempt_times, callback, std::move(list));
+  auto retry_callback =
+      new RetrySendCallback(shared_from_this(), message, max_attempt_times, callback, std::move(list));
   sendImpl(retry_callback);
 }
 

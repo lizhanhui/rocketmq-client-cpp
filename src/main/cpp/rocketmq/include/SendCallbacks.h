@@ -4,6 +4,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/synchronization/mutex.h"
 #include "apache/rocketmq/v1/service.grpc.pb.h"
+#include "opencensus/trace/span.h"
 #include "rocketmq/AsyncCallback.h"
 #include "rocketmq/MQMessage.h"
 #include "rocketmq/MQMessageQueue.h"
@@ -52,7 +53,7 @@ public:
   RetrySendCallback(std::weak_ptr<ProducerImpl> producer, MQMessage message, int max_attempt_times,
                     SendCallback* callback, std::vector<MQMessageQueue> candidates)
       : producer_(std::move(producer)), message_(std::move(message)), max_attempt_times_(max_attempt_times),
-        callback_(callback), candidates_(std::move(candidates)) {}
+        callback_(callback), candidates_(std::move(candidates)), span_(opencensus::trace::Span::BlankSpan()) {}
 
   void onSuccess(const SendResult& send_result) override;
 
@@ -67,6 +68,8 @@ public:
     return candidates_[index];
   }
 
+  opencensus::trace::Span& span() { return span_; }
+
 private:
   std::weak_ptr<ProducerImpl> producer_;
   MQMessage message_;
@@ -74,6 +77,7 @@ private:
   int max_attempt_times_;
   SendCallback* callback_;
   std::vector<MQMessageQueue> candidates_;
+  opencensus::trace::Span span_;
 };
 
 ROCKETMQ_NAMESPACE_END

@@ -46,12 +46,22 @@ void AwaitSendCallback::onException(const MQException& e) {
 }
 
 void RetrySendCallback::onSuccess(const SendResult& send_result) {
+  {
+    // Mark end of send-message span.
+    span_.SetStatus(opencensus::trace::StatusCode::OK);
+    span_.End();
+  }
   callback_->onSuccess(send_result);
-  SPDLOG_DEBUG("");
   delete this;
 }
 
 void RetrySendCallback::onException(const MQException& e) {
+  {
+    // Mark end of the send-message span.
+    span_.SetStatus(opencensus::trace::StatusCode::INTERNAL);
+    span_.End();
+  }
+
   if (++attempt_times_ >= max_attempt_times_) {
     SPDLOG_WARN("Retried {} times, which exceeds the limit: {}", attempt_times_, max_attempt_times_);
     callback_->onException(e);
