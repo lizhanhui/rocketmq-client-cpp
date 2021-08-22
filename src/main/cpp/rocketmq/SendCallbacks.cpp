@@ -1,6 +1,8 @@
 #include "SendCallbacks.h"
 
+#include "include/TransactionImpl.h"
 #include "rocketmq/Logger.h"
+#include "rocketmq/MQMessageQueue.h"
 #include "spdlog/spdlog.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
@@ -55,9 +57,9 @@ void RetrySendCallback::onException(const MQException& e) {
     return;
   }
 
-  std::shared_ptr<ClientManager> client = client_manager_.lock();
-  if (!client) {
-    SPDLOG_WARN("Client instance has destructed");
+  std::shared_ptr<ProducerImpl> producer = producer_.lock();
+  if (!producer) {
+    SPDLOG_WARN("Producer has been destructed");
     callback_->onException(e);
     delete this;
     return;
@@ -70,14 +72,8 @@ void RetrySendCallback::onException(const MQException& e) {
     return;
   }
 
-  const std::string& host = candidates_[attempt_times_ % candidates_.size()].serviceAddress();
-  SPDLOG_DEBUG("Retry-send message to {} for {} times", host, attempt_times_);
-
-  // TODO: Sync target broker-name and partition-id with current partition.
-  request_.mutable_message()->mutable_system_attribute()->set_partition_id(
-      candidates_[attempt_times_ % candidates_.size()].getQueueId());
-
-  client->send(host, metadata_, request_, this);
+  MQMessageQueue message_queue = candidates_[attempt_times_ % candidates_.size()];
+  producer->sendImpl(message_, this, message_queue);
 }
 
 ROCKETMQ_NAMESPACE_END

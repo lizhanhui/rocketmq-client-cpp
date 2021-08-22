@@ -13,6 +13,7 @@
 #include "rocketmq/AsyncCallback.h"
 #include "rocketmq/LocalTransactionStateChecker.h"
 #include "rocketmq/MQMessage.h"
+#include "rocketmq/MQMessageQueue.h"
 #include "rocketmq/MQSelector.h"
 #include "rocketmq/SendResult.h"
 #include "rocketmq/State.h"
@@ -80,6 +81,8 @@ public:
   uint32_t compressBodyThreshold() const { return compress_body_threshold_; }
 
   void compressBodyThreshold(uint32_t threshold) { compress_body_threshold_ = threshold; }
+
+  void sendImpl(const MQMessage& message, SendCallback* callback, const MQMessageQueue& message_queue);
 
 protected:
   std::shared_ptr<ClientImpl> self() override { return shared_from_this(); }

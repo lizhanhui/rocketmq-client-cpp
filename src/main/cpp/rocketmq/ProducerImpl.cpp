@@ -4,6 +4,7 @@
 #include "MetadataConstants.h"
 #include "MixAll.h"
 #include "Protocol.h"
+#include "RpcClient.h"
 #include "SendCallbacks.h"
 #include "SendMessageContext.h"
 #include "Signature.h"
@@ -12,6 +13,8 @@
 #include "UtilAll.h"
 #include "rocketmq/ErrorCode.h"
 #include "rocketmq/MQClientException.h"
+#include "rocketmq/MQMessage.h"
+#include "rocketmq/MQMessageQueue.h"
 #include <atomic>
 
 ROCKETMQ_NAMESPACE_BEGIN
@@ -261,45 +264,41 @@ void ProducerImpl::setLocalTransactionStateChecker(LocalTransactionStateCheckerP
   transaction_state_checker_ = std::move(checker);
 }
 
+void ProducerImpl::sendImpl(const MQMessage& message, SendCallback* callback, const MQMessageQueue& message_queue) {
+  const std::string& target = message_queue.serviceAddress();
+  if (target.empty()) {
+    SPDLOG_WARN("Failed to resolve broker address from MessageQueue");
+    MQClientException e("Failed to resolve broker address", FAILED_TO_RESOLVE_BROKER_ADDRESS_FROM_TOPIC_ROUTE, __FILE__,
+                        __LINE__);
+    callback->onException(e);
+    return;
+  }
+
+  SendMessageRequest request;
+  wrapSendMessageRequest(message, request, message_queue);
+  Metadata metadata;
+  Signature::sign(this, metadata);
+  client_manager_->send(target, metadata, request, callback);
+}
+
 void ProducerImpl::send0(const MQMessage& message, SendCallback* callback, std::vector<MQMessageQueue> list,
                          int max_attempt_times) {
   assert(callback);
   if (list.empty()) {
-    MQClientException e("Topic route not found", -1, __FILE__, __LINE__);
+    MQClientException e("Topic route not found", NO_TOPIC_ROUTE_INFO, __FILE__, __LINE__);
     callback->onException(e);
     return;
   }
 
   if (max_attempt_times <= 0) {
-    MQClientException e("Retry times illegal", BAD_CONFIGURATION, __FILE__, __LINE__);
+    MQClientException e("Retry times illegal", ERR_INVALID_MAX_ATTEMPT_TIME, __FILE__, __LINE__);
     callback->onException(e);
     return;
   }
-
-  const std::string& target = list[0].serviceAddress();
-  if (target.empty()) {
-    SPDLOG_DEBUG("Unable to resolve broker address");
-    THROW_MQ_EXCEPTION(MQClientException, "Failed to resolve broker address from topic route",
-                       FAILED_TO_RESOLVE_BROKER_ADDRESS_FROM_TOPIC_ROUTE);
-  }
-
-  SendMessageRequest request;
-  // Unique message-id is generated using IP, timestamp, hash-code and sequence during the transformation
-  wrapSendMessageRequest(message, request, list[0]);
-
-  absl::flat_hash_map<std::string, std::string> metadata;
-
-  // Sign the request. Metadata entries will be part of HTT2 headers frame
-  Signature::sign(this, metadata);
-
-  if (max_attempt_times == 1) {
-    client_manager_->send(target, metadata, request, callback);
-    return;
-  }
-
+  MQMessageQueue message_queue = list[0];
   auto retry_callback =
-      new RetrySendCallback(client_manager_, metadata, request, max_attempt_times, callback, std::move(list));
-  client_manager_->send(target, metadata, request, retry_callback);
+      new RetrySendCallback(shared_from_this(), message, max_attempt_times, callback, std::move(list));
+  sendImpl(message, retry_callback, message_queue);
 }
 
 bool ProducerImpl::endTransaction0(const std::string& target, const std::string& message_id,
