@@ -8,6 +8,7 @@
 #include "absl/synchronization/mutex.h"
 #include "opencensus/trace/exporter/span_data.h"
 #include "opencensus/trace/exporter/span_exporter.h"
+#include "opencensus/trace/sampler.h"
 #include "opentelemetry/proto/collector/trace/v1/trace_service.grpc.pb.h"
 #include "rocketmq/RocketMQ.h"
 #include <algorithm>
@@ -22,6 +23,11 @@ namespace collector = opentelemetry::proto::collector;
 namespace collector_trace = collector::trace::v1;
 
 enum class TraceMode : std::uint8_t { OFF = 0, DEBUG = 1, GRPC = 2 };
+
+class Samplers {
+public:
+  static opencensus::trace::Sampler& always();
+};
 
 class OtlpExporter : public std::enable_shared_from_this<OtlpExporter> {
 public:

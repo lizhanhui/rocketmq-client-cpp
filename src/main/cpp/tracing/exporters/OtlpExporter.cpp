@@ -21,6 +21,11 @@ ROCKETMQ_NAMESPACE_BEGIN
 namespace trace = opentelemetry::proto::trace::v1;
 namespace common = opentelemetry::proto::common::v1;
 
+opencensus::trace::Sampler& Samplers::always() {
+  static opencensus::trace::AlwaysSampler sampler;
+  return sampler;
+}
+
 void OtlpExporter::start() {
   std::shared_ptr<OtlpExporter> self = shared_from_this();
   auto handler = absl::make_unique<OtlpExporterHandler>(self);
