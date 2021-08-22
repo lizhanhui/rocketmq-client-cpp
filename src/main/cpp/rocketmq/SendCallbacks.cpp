@@ -73,7 +73,7 @@ void RetrySendCallback::onException(const MQException& e) {
   }
 
   MQMessageQueue message_queue = candidates_[attempt_times_ % candidates_.size()];
-  producer->sendImpl(message_, this, message_queue);
+  producer->sendImpl(message_, this, message_queue, attempt_times_);
 }
 
 ROCKETMQ_NAMESPACE_END

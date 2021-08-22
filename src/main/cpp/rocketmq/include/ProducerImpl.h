@@ -82,7 +82,16 @@ public:
 
   void compressBodyThreshold(uint32_t threshold) { compress_body_threshold_ = threshold; }
 
-  void sendImpl(const MQMessage& message, SendCallback* callback, const MQMessageQueue& message_queue);
+  /**
+   * @brief Send message with tracing.
+   *
+   * @param message
+   * @param callback
+   * @param message_queue
+   * @param attempt_time current attempt times, which starts from 0.
+   */
+  void sendImpl(const MQMessage& message, SendCallback* callback, const MQMessageQueue& message_queue,
+                int32_t attempt_time);
 
 protected:
   std::shared_ptr<ClientImpl> self() override { return shared_from_this(); }
