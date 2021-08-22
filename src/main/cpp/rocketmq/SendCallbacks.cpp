@@ -1,6 +1,8 @@
 #include "SendCallbacks.h"
 
-#include "include/TransactionImpl.h"
+#include "ProducerImpl.h"
+#include "TransactionImpl.h"
+#include "opencensus/trace/span.h"
 #include "rocketmq/Logger.h"
 #include "rocketmq/MQMessageQueue.h"
 #include "spdlog/spdlog.h"
@@ -73,7 +75,7 @@ void RetrySendCallback::onException(const MQException& e) {
   }
 
   MQMessageQueue message_queue = candidates_[attempt_times_ % candidates_.size()];
-  producer->sendImpl(message_, this, message_queue, attempt_times_);
+  producer->sendImpl(this);
 }
 
 ROCKETMQ_NAMESPACE_END

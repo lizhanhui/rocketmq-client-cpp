@@ -269,9 +269,8 @@ void ProducerImpl::setLocalTransactionStateChecker(LocalTransactionStateCheckerP
   transaction_state_checker_ = std::move(checker);
 }
 
-void ProducerImpl::sendImpl(const MQMessage& message, SendCallback* callback, const MQMessageQueue& message_queue,
-                            int32_t attempt_times) {
-  const std::string& target = message_queue.serviceAddress();
+void ProducerImpl::sendImpl(RetrySendCallback* callback) {
+  const std::string& target = callback->messageQueue().serviceAddress();
   if (target.empty()) {
     SPDLOG_WARN("Failed to resolve broker address from MessageQueue");
     MQClientException e("Failed to resolve broker address", FAILED_TO_RESOLVE_BROKER_ADDRESS_FROM_TOPIC_ROUTE, __FILE__,
@@ -281,12 +280,13 @@ void ProducerImpl::sendImpl(const MQMessage& message, SendCallback* callback, co
   }
 
   SendMessageRequest request;
-  wrapSendMessageRequest(message, request, message_queue);
+  wrapSendMessageRequest(callback->message(), request, callback->messageQueue());
   Metadata metadata;
   Signature::sign(this, metadata);
 
   {
     // Trace Send RPC
+    auto& message = callback->message();
     const std::string& trace_context = message.traceContext();
     opencensus::trace::SpanContext context;
     if (!trace_context.empty()) {
@@ -302,13 +302,14 @@ void ProducerImpl::sendImpl(const MQMessage& message, SendCallback* callback, co
     span.AddAttribute(MixAll::SPAN_ATTRIBUTE_MESSAGE_ID, opencensus::trace::AttributeValueRef(message.getMsgId()));
     span.AddAttribute(MixAll::SPAN_ATTRIBUTE_GROUP, opencensus::trace::AttributeValueRef(getGroupName()));
     span.AddAttribute(MixAll::SPAN_ATTRIBUTE_TAG, opencensus::trace::AttributeValueRef(message.getTags()));
-    const auto& keys = message.getKeys();
+    const auto& keys = callback->message().getKeys();
     if (!keys.empty()) {
       span.AddAttribute(MixAll::SPAN_ATTRIBUTE_KEYS, opencensus::trace::AttributeValueRef(absl::StrJoin(
                                                          keys.begin(), keys.end(), MixAll::MESSAGE_KEY_SEPARATOR)));
     }
     // Note: attempt-time is 0-based
-    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_ATTEMPT_TIME, opencensus::trace::AttributeValueRef(1 + attempt_times));
+    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_ATTEMPT_TIME,
+                      opencensus::trace::AttributeValueRef(1 + callback->attemptTime()));
     span.AddAttribute(MixAll::SPAN_ATTRIBUTE_BORN_HOST, opencensus::trace::AttributeValueRef(message.getBornHost()));
 
     if (message.deliveryTimestamp() != absl::ToChronoTime(absl::UnixEpoch())) {
@@ -334,9 +335,8 @@ void ProducerImpl::send0(const MQMessage& message, SendCallback* callback, std::
     return;
   }
   MQMessageQueue message_queue = list[0];
-  auto retry_callback =
-      new RetrySendCallback(shared_from_this(), message, max_attempt_times, callback, std::move(list));
-  sendImpl(message, retry_callback, message_queue, 0);
+  auto retry_callback = new RetrySendCallback(shared_from_this(), message, max_attempt_times, callback, std::move(list));
+  sendImpl(retry_callback);
 }
 
 bool ProducerImpl::endTransaction0(const std::string& target, const std::string& message_id,

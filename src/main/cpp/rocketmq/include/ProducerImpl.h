@@ -8,6 +8,7 @@
 #include "ClientImpl.h"
 #include "ClientManagerImpl.h"
 #include "MixAll.h"
+#include "SendCallbacks.h"
 #include "TopicPublishInfo.h"
 #include "TransactionImpl.h"
 #include "rocketmq/AsyncCallback.h"
@@ -90,8 +91,7 @@ public:
    * @param message_queue
    * @param attempt_time current attempt times, which starts from 0.
    */
-  void sendImpl(const MQMessage& message, SendCallback* callback, const MQMessageQueue& message_queue,
-                int32_t attempt_time);
+  void sendImpl(RetrySendCallback* callback);
 
 protected:
   std::shared_ptr<ClientImpl> self() override { return shared_from_this(); }

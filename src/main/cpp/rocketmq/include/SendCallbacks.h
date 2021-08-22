@@ -1,11 +1,12 @@
 #pragma once
 
-#include "ProducerImpl.h"
+#include "TransactionImpl.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/synchronization/mutex.h"
 #include "apache/rocketmq/v1/service.grpc.pb.h"
 #include "rocketmq/AsyncCallback.h"
 #include "rocketmq/MQMessage.h"
+#include "rocketmq/MQMessageQueue.h"
 #include <memory>
 
 ROCKETMQ_NAMESPACE_BEGIN
@@ -44,6 +45,8 @@ private:
   std::string error_message_;
 };
 
+class ProducerImpl;
+
 class RetrySendCallback : public SendCallback {
 public:
   RetrySendCallback(std::weak_ptr<ProducerImpl> producer, MQMessage message, int max_attempt_times,
@@ -54,6 +57,15 @@ public:
   void onSuccess(const SendResult& send_result) override;
 
   void onException(const MQException& e) override;
+
+  MQMessage& message() { return message_; }
+
+  int attemptTime() const { return attempt_times_; }
+
+  const MQMessageQueue& messageQueue() const {
+    int index = attempt_times_ % candidates_.size();
+    return candidates_[index];
+  }
 
 private:
   std::weak_ptr<ProducerImpl> producer_;
