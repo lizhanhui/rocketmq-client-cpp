@@ -11,3 +11,14 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "span_context_test",
+    srcs = [
+        "SpanContextTest.cpp",
+    ],
+    deps = [
+        "@io_opencensus_cpp//opencensus/trace",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

@@ -49,7 +49,6 @@ public:
   static const char* SPAN_NAME_CONSUME_MESSAGE;
   static const char* SPAN_NAME_PULL_MESSAGE;
 
-
   // Tracing attribute name list
   static const char* SPAN_ATTRIBUTE_ACCESS_KEY;
   static const char* SPAN_ATTRIBUTE_ARN;
@@ -63,6 +62,12 @@ public:
   static const char* SPAN_ATTRIBUTE_ATTEMPT_TIME;
   static const char* SPAN_ATTRIBUTE_DELIVERY_TIMESTAMP;
   static const char* SPAN_ATTRIBUTE_TRANSACTION_RESOLUTION;
+  static const char* SPAN_ATTRIBUTE_AVAILABLE_TIMESTAMP;
+  static const char* SPAN_ATTRIBUTE_BATCH_SIZE;
+
+  // Tracing annotation
+  static const char* SPAN_ANNOTATION_AWAIT_CONSUMPTION;
+  static const char* SPAN_ANNOTATION_ATTR_START_TIME;
 
   template <typename Rep, typename Period> static int64_t millisecondsOf(std::chrono::duration<Rep, Period> duration) {
     return std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();

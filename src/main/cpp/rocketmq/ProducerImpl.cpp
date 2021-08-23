@@ -288,30 +288,30 @@ void ProducerImpl::sendImpl(RetrySendCallback* callback) {
   {
     // Trace Send RPC
     auto& message = callback->message();
-    const std::string& trace_context = message.traceContext();
-    opencensus::trace::SpanContext context;
-    if (!trace_context.empty()) {
-      context = opencensus::trace::propagation::FromTraceParentHeader(trace_context);
+    auto span_context = opencensus::trace::propagation::FromTraceParentHeader(message.traceContext());
+
+    auto span = opencensus::trace::Span::BlankSpan();
+    if (span_context.IsValid()) {
+      span = opencensus::trace::Span::StartSpanWithRemoteParent(MixAll::SPAN_NAME_SEND_MESSAGE, span_context,
+                                                                {&Samplers::always()});
+    } else {
+      span = opencensus::trace::Span::StartSpan(MixAll::SPAN_NAME_SEND_MESSAGE, nullptr, {&Samplers::always()});
     }
 
-    auto span = opencensus::trace::Span::StartSpanWithRemoteParent(MixAll::SPAN_NAME_SEND_MESSAGE, context,
-                                                                   {&Samplers::always()});
-    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_ACCESS_KEY,
-                      opencensus::trace::AttributeValueRef(credentialsProvider()->getCredentials().accessKey()));
-    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_ARN, opencensus::trace::AttributeValueRef(arn()));
-    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_TOPIC, opencensus::trace::AttributeValueRef(message.getTopic()));
-    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_MESSAGE_ID, opencensus::trace::AttributeValueRef(message.getMsgId()));
-    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_GROUP, opencensus::trace::AttributeValueRef(getGroupName()));
-    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_TAG, opencensus::trace::AttributeValueRef(message.getTags()));
+    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_ACCESS_KEY, credentialsProvider()->getCredentials().accessKey());
+    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_ARN, arn());
+    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_TOPIC, message.getTopic());
+    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_MESSAGE_ID, message.getMsgId());
+    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_GROUP, getGroupName());
+    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_TAG, message.getTags());
     const auto& keys = callback->message().getKeys();
     if (!keys.empty()) {
-      span.AddAttribute(MixAll::SPAN_ATTRIBUTE_KEYS, opencensus::trace::AttributeValueRef(absl::StrJoin(
-                                                         keys.begin(), keys.end(), MixAll::MESSAGE_KEY_SEPARATOR)));
+      span.AddAttribute(MixAll::SPAN_ATTRIBUTE_KEYS,
+                        absl::StrJoin(keys.begin(), keys.end(), MixAll::MESSAGE_KEY_SEPARATOR));
     }
     // Note: attempt-time is 0-based
-    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_ATTEMPT_TIME,
-                      opencensus::trace::AttributeValueRef(1 + callback->attemptTime()));
-    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_HOST, opencensus::trace::AttributeValueRef(message.getBornHost()));
+    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_ATTEMPT_TIME, 1 + callback->attemptTime());
+    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_HOST, UtilAll::hostname());
 
     if (message.deliveryTimestamp() != absl::ToChronoTime(absl::UnixEpoch())) {
       span.AddAttribute(MixAll::SPAN_ATTRIBUTE_DELIVERY_TIMESTAMP,
@@ -418,7 +418,7 @@ bool ProducerImpl::endTransaction0(const std::string& target, const std::string&
       cv.SignalAll();
     }
   };
-  
+
   client_manager_->endTransaction(target, metadata, request, absl::ToChronoMilliseconds(io_timeout_), cb);
   {
     absl::MutexLock lk(&mtx);
