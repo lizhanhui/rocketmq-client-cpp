@@ -1,5 +1,6 @@
 #include "OtlpExporter.h"
 #include "InvocationContext.h"
+#include "MixAll.h"
 #include "Signature.h"
 #include "fmt/format.h"
 #include "opentelemetry/proto/collector/trace/v1/trace_service.pb.h"
@@ -133,7 +134,26 @@ void OtlpExporterHandler::Export(const std::vector<::opencensus::trace::exporter
   case TraceMode::DEBUG: {
     {
       for (const auto& span : spans) {
-        SPDLOG_INFO("{} --> {}: {}", absl::FormatTime(span.start_time()), absl::FormatTime(span.end_time()), span.name().data());
+        SPDLOG_INFO("{} --> {}: {}", absl::FormatTime(span.start_time()), absl::FormatTime(span.end_time()),
+                    span.name().data());
+        for (const auto& event : span.annotations().events()) {
+          for (const auto& attr : event.event().attributes()) {
+            switch (attr.second.type()) {
+            case opencensus::trace::AttributeValueRef::Type::kString:
+              SPDLOG_INFO("Annotation {} attribute: {} --> {}", event.event().description().data(), attr.first,
+                          attr.second.string_value());
+              break;
+            case opencensus::trace::AttributeValueRef::Type::kInt:
+              SPDLOG_INFO("Annotation {} attribute: {} --> {}", event.event().description().data(), attr.first,
+                          attr.second.int_value());
+              break;
+            case opencensus::trace::AttributeValueRef::Type::kBool:
+              SPDLOG_INFO("Annotation {} attribute: {} --> {}", event.event().description().data(), attr.first,
+                          attr.second.bool_value());
+              break;
+            }
+          }
+        }
       }
     }
     return;
@@ -185,6 +205,18 @@ void OtlpExporterHandler::Export(const std::vector<::opencensus::trace::exporter
 
     if (!span.annotations().events().empty()) {
       for (const auto& annotation : span.annotations().events()) {
+        // Specialized annotation to adjust span start-time.
+        // OpenCensus does not expose function to modify span start time. As as result, we need to apply this system
+        // annotation duration transforming opencensus span to OpenTelemetry span.
+        if (annotation.event().description() == MixAll::SPAN_ANNOTATION_AWAIT_CONSUMPTION) {
+          for (const auto& attr : annotation.event().attributes()) {
+            if (attr.first == MixAll::SPAN_ANNOTATION_ATTR_START_TIME) {
+              assert(attr.second.type() == opencensus::trace::AttributeValueRef::Type::kInt);
+              item->set_start_time_unix_nano(attr.second.int_value() * 1e6);
+            }
+          }
+          continue;
+        }
         auto ev = new trace::Span::Event();
         ev->set_time_unix_nano(absl::ToUnixNanos(annotation.timestamp()));
         auto attrs = annotation.event().attributes();

@@ -367,22 +367,28 @@ bool ProducerImpl::endTransaction0(const std::string& target, const std::string&
   bool success = false;
   // Trace transactional message
   opencensus::trace::SpanContext span_context = opencensus::trace::propagation::FromTraceParentHeader(trace_context);
-  auto span = opencensus::trace::Span::StartSpanWithRemoteParent(MixAll::SPAN_NAME_END_TRANSACTION, span_context,
-                                                                 {&Samplers::always()});
-  span.AddAttribute(MixAll::SPAN_ATTRIBUTE_ACCESS_KEY,
-                    opencensus::trace::AttributeValueRef(credentialsProvider()->getCredentials().accessKey()));
-  span.AddAttribute(MixAll::SPAN_ATTRIBUTE_ARN, opencensus::trace::AttributeValueRef(arn()));
-  span.AddAttribute(MixAll::SPAN_ATTRIBUTE_GROUP, opencensus::trace::AttributeValueRef(getGroupName()));
-  span.AddAttribute(MixAll::SPAN_ATTRIBUTE_MESSAGE_ID, opencensus::trace::AttributeValueRef(message_id));
-  span.AddAttribute(MixAll::SPAN_ATTRIBUTE_HOST, opencensus::trace::AttributeValueRef(UtilAll::hostname()));
+  auto span = opencensus::trace::Span::BlankSpan();
+  if (span_context.IsValid()) {
+    span = opencensus::trace::Span::StartSpanWithRemoteParent(MixAll::SPAN_NAME_END_TRANSACTION, span_context,
+                                                              {&Samplers::always()});
+  } else {
+    span = opencensus::trace::Span::StartSpan(MixAll::SPAN_NAME_END_TRANSACTION, nullptr, {&Samplers::always()});
+  }
+
+  span.AddAttribute(MixAll::SPAN_ATTRIBUTE_ACCESS_KEY, credentialsProvider()->getCredentials().accessKey());
+  span.AddAttribute(MixAll::SPAN_ATTRIBUTE_ARN, arn());
+  span.AddAttribute(MixAll::SPAN_ATTRIBUTE_GROUP, getGroupName());
+  span.AddAttribute(MixAll::SPAN_ATTRIBUTE_MESSAGE_ID, message_id);
+  span.AddAttribute(MixAll::SPAN_ATTRIBUTE_HOST, UtilAll::hostname());
   switch (resolution) {
   case TransactionState::COMMIT:
-    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_TRANSACTION_RESOLUTION, opencensus::trace::AttributeValueRef("commit"));
+    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_TRANSACTION_RESOLUTION, "commit");
     break;
   case TransactionState::ROLLBACK:
-    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_TRANSACTION_RESOLUTION, opencensus::trace::AttributeValueRef("rollback"));
+    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_TRANSACTION_RESOLUTION, "rollback");
     break;
   }
+
   absl::Mutex mtx;
   absl::CondVar cv;
   auto cb = [&, span](bool rpc_ok, const EndTransactionResponse& response) {
