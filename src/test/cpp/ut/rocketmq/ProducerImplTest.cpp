@@ -167,7 +167,7 @@ TEST_F(ProducerImplTest, testSend_WithMessageQueueSelector) {
 class TestSendCallback : public SendCallback {
 public:
   TestSendCallback(bool& completed, absl::Mutex& mtx, absl::CondVar& cv) : completed_(completed), mtx_(mtx), cv_(cv) {}
-  void onSuccess(const SendResult& send_result) override {
+  void onSuccess(SendResult& send_result) override {
     absl::MutexLock lk(&mtx_);
     completed_ = true;
     cv_.SignalAll();

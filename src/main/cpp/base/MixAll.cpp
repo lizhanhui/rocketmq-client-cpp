@@ -48,6 +48,10 @@ const char* MixAll::MESSAGE_KEY_SEPARATOR = " ";
 
 // Span name list
 const char* MixAll::SPAN_NAME_SEND_MESSAGE = "SendMessage";
+const char* MixAll::SPAN_NAME_END_TRANSACTION = "EndTransaction";
+const char* MixAll::SPAN_NAME_AWAIT_CONSUMPTION = "waitingConsumption";
+const char* MixAll::SPAN_NAME_CONSUME_MESSAGE = "ConsumeMessage";
+const char* MixAll::SPAN_NAME_PULL_MESSAGE = "PullMessage";
 
 // Span attribute name list
 const char* MixAll::SPAN_ATTRIBUTE_ACCESS_KEY = "ak";
@@ -59,8 +63,9 @@ const char* MixAll::SPAN_ATTRIBUTE_TOPIC = "topic";
 const char* MixAll::SPAN_ATTRIBUTE_GROUP = "consumer_group";
 const char* MixAll::SPAN_ATTRIBUTE_MESSAGE_ID = "msg_id";
 const char* MixAll::SPAN_ATTRIBUTE_TAG = "tags";
-const char* MixAll::SPAN_ATTRIBUTE_BORN_HOST = "store_host";
+const char* MixAll::SPAN_ATTRIBUTE_HOST = "host";
 const char* MixAll::SPAN_ATTRIBUTE_ATTEMPT_TIME = "retry_time";
+const char* MixAll::SPAN_ATTRIBUTE_TRANSACTION_RESOLUTION = "commit_action";
 
 bool MixAll::validate(const MQMessage& message) {
   if (message.getTopic().empty()) {

@@ -20,6 +20,7 @@
 #include "rocketmq/MQClientException.h"
 #include "rocketmq/MQMessage.h"
 #include "rocketmq/MQMessageQueue.h"
+#include "rocketmq/Transaction.h"
 #include <atomic>
 
 ROCKETMQ_NAMESPACE_BEGIN
@@ -310,7 +311,7 @@ void ProducerImpl::sendImpl(RetrySendCallback* callback) {
     // Note: attempt-time is 0-based
     span.AddAttribute(MixAll::SPAN_ATTRIBUTE_ATTEMPT_TIME,
                       opencensus::trace::AttributeValueRef(1 + callback->attemptTime()));
-    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_BORN_HOST, opencensus::trace::AttributeValueRef(message.getBornHost()));
+    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_HOST, opencensus::trace::AttributeValueRef(message.getBornHost()));
 
     if (message.deliveryTimestamp() != absl::ToChronoTime(absl::UnixEpoch())) {
       span.AddAttribute(MixAll::SPAN_ATTRIBUTE_DELIVERY_TIMESTAMP,
@@ -343,7 +344,8 @@ void ProducerImpl::send0(const MQMessage& message, SendCallback* callback, std::
 }
 
 bool ProducerImpl::endTransaction0(const std::string& target, const std::string& message_id,
-                                   const std::string& transaction_id, TransactionState resolution) {
+                                   const std::string& transaction_id, TransactionState resolution,
+                                   std::string trace_context) {
 
   EndTransactionRequest request;
   request.set_message_id(message_id);
@@ -363,25 +365,60 @@ bool ProducerImpl::endTransaction0(const std::string& target, const std::string&
   Signature::sign(this, metadata);
   bool completed = false;
   bool success = false;
+  // Trace transactional message
+  opencensus::trace::SpanContext span_context = opencensus::trace::propagation::FromTraceParentHeader(trace_context);
+  auto span = opencensus::trace::Span::StartSpanWithRemoteParent(MixAll::SPAN_NAME_END_TRANSACTION, span_context,
+                                                                 {&Samplers::always()});
+  span.AddAttribute(MixAll::SPAN_ATTRIBUTE_ACCESS_KEY,
+                    opencensus::trace::AttributeValueRef(credentialsProvider()->getCredentials().accessKey()));
+  span.AddAttribute(MixAll::SPAN_ATTRIBUTE_ARN, opencensus::trace::AttributeValueRef(arn()));
+  span.AddAttribute(MixAll::SPAN_ATTRIBUTE_GROUP, opencensus::trace::AttributeValueRef(getGroupName()));
+  span.AddAttribute(MixAll::SPAN_ATTRIBUTE_MESSAGE_ID, opencensus::trace::AttributeValueRef(message_id));
+  span.AddAttribute(MixAll::SPAN_ATTRIBUTE_HOST, opencensus::trace::AttributeValueRef(UtilAll::hostname()));
+  switch (resolution) {
+  case TransactionState::COMMIT:
+    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_TRANSACTION_RESOLUTION, opencensus::trace::AttributeValueRef("commit"));
+    break;
+  case TransactionState::ROLLBACK:
+    span.AddAttribute(MixAll::SPAN_ATTRIBUTE_TRANSACTION_RESOLUTION, opencensus::trace::AttributeValueRef("rollback"));
+    break;
+  }
   absl::Mutex mtx;
   absl::CondVar cv;
-  auto cb = [&](bool rpc_ok, const EndTransactionResponse& response) {
+  auto cb = [&, span](bool rpc_ok, const EndTransactionResponse& response) {
     completed = true;
     if (!rpc_ok) {
+      {
+        span.SetStatus(opencensus::trace::StatusCode::ABORTED);
+        span.AddAnnotation("gRPC tier failure");
+        span.End();
+      }
+
       SPDLOG_WARN("Failed to send {} transaction request to {}", action, target);
       success = false;
     } else if (response.common().status().code() != google::rpc::Code::OK) {
+      {
+        span.SetStatus(opencensus::trace::ABORTED);
+        span.AddAnnotation(response.common().status().DebugString());
+        span.End();
+      }
       success = false;
       SPDLOG_WARN("Server[host={}] failed to {} transaction. Reason: {}", target, action,
                   response.common().DebugString());
     } else {
+      {
+        span.SetStatus(opencensus::trace::StatusCode::OK);
+        span.End();
+      }
       success = true;
     }
+
     {
       absl::MutexLock lk(&mtx);
       cv.SignalAll();
     }
   };
+  
   client_manager_->endTransaction(target, metadata, request, absl::ToChronoMilliseconds(io_timeout_), cb);
   {
     absl::MutexLock lk(&mtx);
@@ -433,22 +470,23 @@ void ProducerImpl::isolateEndpoint(const std::string& target) {
 std::unique_ptr<TransactionImpl> ProducerImpl::prepare(const MQMessage& message) {
   try {
     SendResult send_result = send(message);
-    return std::unique_ptr<TransactionImpl>(new TransactionImpl(send_result.getMsgId(), send_result.getTransactionId(),
-                                                                send_result.getMessageQueue().serviceAddress(),
-                                                                ProducerImpl::shared_from_this()));
+    return std::unique_ptr<TransactionImpl>(new TransactionImpl(
+        send_result.getMsgId(), send_result.getTransactionId(), send_result.getMessageQueue().serviceAddress(),
+        send_result.traceContext(), ProducerImpl::shared_from_this()));
   } catch (const MQClientException& e) {
     SPDLOG_ERROR("Failed to send transaction message. Cause: {}", e.what());
     return nullptr;
   }
 }
 
-bool ProducerImpl::commit(const std::string& message_id, const std::string& transaction_id, const std::string& target) {
-  return endTransaction0(target, message_id, transaction_id, TransactionState::COMMIT);
+bool ProducerImpl::commit(const std::string& message_id, const std::string& transaction_id,
+                          const std::string& trace_context, const std::string& target) {
+  return endTransaction0(target, message_id, transaction_id, TransactionState::COMMIT, trace_context);
 }
 
 bool ProducerImpl::rollback(const std::string& message_id, const std::string& transaction_id,
-                            const std::string& target) {
-  return endTransaction0(target, message_id, transaction_id, TransactionState::ROLLBACK);
+                            const std::string& trace_context, const std::string& target) {
+  return endTransaction0(target, message_id, transaction_id, TransactionState::ROLLBACK, trace_context);
 }
 
 void ProducerImpl::asyncPublishInfo(const std::string& topic,
@@ -573,7 +611,7 @@ void ProducerImpl::resolveOrphanedTransactionalMessage(const std::string& transa
   if (transaction_state_checker_) {
     TransactionState state = transaction_state_checker_->checkLocalTransactionState(message);
     const std::string& target_host = MessageAccessor::targetEndpoint(message);
-    endTransaction0(target_host, message.getMsgId(), transaction_id, state);
+    endTransaction0(target_host, message.getMsgId(), transaction_id, state, message.traceContext());
   } else {
     SPDLOG_WARN("LocalTransactionStateChecker is unexpectedly nullptr");
   }

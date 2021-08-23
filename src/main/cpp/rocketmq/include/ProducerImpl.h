@@ -52,9 +52,9 @@ public:
 
   std::unique_ptr<TransactionImpl> prepare(const MQMessage& message);
 
-  bool commit(const std::string& message_id, const std::string& transaction_id, const std::string& target);
+  bool commit(const std::string& message_id, const std::string& transaction_id, const std::string& trace_context, const std::string& target);
 
-  bool rollback(const std::string& message_id, const std::string& transaction_id, const std::string& target);
+  bool rollback(const std::string& message_id, const std::string& transaction_id, const std::string& trace_context, const std::string& target);
 
   /**
    * Check if the RPC client for the target host is isolated or not
@@ -131,7 +131,7 @@ private:
   void send0(const MQMessage& message, SendCallback* callback, std::vector<MQMessageQueue> list, int max_attempt_times);
 
   bool endTransaction0(const std::string& target, const std::string& message_id, const std::string& transaction_id,
-                       TransactionState resolution);
+                       TransactionState resolution, std::string trace_context);
 
   void isolatedEndpoints(absl::flat_hash_set<std::string>& endpoints) LOCKS_EXCLUDED(isolated_endpoints_mtx_);
 
