@@ -156,6 +156,7 @@ TEST_F(DefaultMQProducerUnitTest, testSendMessage) {
   auto producer = std::make_shared<ProducerImpl>(group_name_);
   producer->arn(arn_);
   producer->setNameServerList(name_server_list_);
+  producer->setCredentialsProvider(credentials_provider_);
   producer->start();
   MQMessage message;
   SendResult send_result = producer->send(message);
@@ -167,6 +168,7 @@ TEST_F(DefaultMQProducerUnitTest, testEndpointIsolation) {
   auto producer = std::make_shared<ProducerImpl>(group_name_);
   producer->arn(arn_);
   producer->setNameServerList(name_server_list_);
+  producer->setCredentialsProvider(credentials_provider_);
   producer->start();
 
   const char* isolated_endpoint = "ipv4:10.0.0.0:10911";
