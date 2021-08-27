@@ -1,8 +1,8 @@
 #include "rocketmq/DefaultMQPushConsumer.h"
-#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG
+#include "rocketmq/Logger.h"
 #include "spdlog/spdlog.h"
-
 #include <chrono>
+#include <iostream>
 #include <mutex>
 #include <thread>
 
@@ -12,8 +12,8 @@ class SampleMQMessageListener : public StandardMessageListener {
 public:
   ConsumeMessageResult consumeMessage(const std::vector<MQMessageExt>& msgs) override {
     for (const MQMessageExt& msg : msgs) {
-      SPDLOG_INFO("Receive a message. MessageId={}", msg.getMsgId());
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      SPDLOG_WARN("Consume message[Topic={}, MessageId={}] OK", msg.getTopic(), msg.getMsgId());
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
     return ConsumeMessageResult::SUCCESS;
   }
@@ -38,6 +38,7 @@ int main(int argc, char* argv[]) {
   push_consumer.setInstanceName("instance_0");
   push_consumer.subscribe(topic, "*");
   push_consumer.registerMessageListener(listener);
+  push_consumer.setConsumeThreadCount(2);
   push_consumer.start();
 
   std::this_thread::sleep_for(std::chrono::seconds(300));

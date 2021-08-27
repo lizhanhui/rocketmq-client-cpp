@@ -663,11 +663,10 @@ void ClientManagerImpl::processPopResult(const grpc::ClientContext& client_conte
   if (ReceiveMessageStatus::OK == status) {
     for (auto& item : response.messages()) {
       MQMessageExt message_ext;
+      MessageAccessor::setTargetEndpoint(message_ext, target_host);
       if (wrapMessage(item, message_ext)) {
         msg_found_list.emplace_back(message_ext);
-        MessageAccessor::setTargetEndpoint(message_ext, target_host);
       } else {
-
         // TODO: NACK
       }
     }
