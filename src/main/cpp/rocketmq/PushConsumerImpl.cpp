@@ -202,6 +202,7 @@ void PushConsumerImpl::queryAssignment(const std::string& topic,
     }
 
     QueryAssignmentRequest request;
+    setAccessPoint(request.mutable_endpoints());
     wrapQueryAssignmentRequest(topic, group_name_, clientId(), MixAll::DEFAULT_LOAD_BALANCER_STRATEGY_NAME_, request);
 
     absl::flat_hash_map<std::string, std::string> metadata;

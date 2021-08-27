@@ -25,14 +25,14 @@ int main(int argc, char* argv[]) {
   logger.setLevel(Level::Debug);
   logger.init();
 
-  const char* cid = "GID_group003";
-  const char* topic = "yc001";
-  const char* arn = "MQ_INST_1973281269661160_BXmPlOA6";
+  const char* cid = "GID_cpp_sdk_standard";
+  const char* topic = "cpp_sdk_standard";
+  const char* arn = "MQ_INST_1080056302921134_BXuIbML7";
 
   DefaultMQPushConsumer push_consumer(cid);
   push_consumer.setArn(arn);
   push_consumer.setCredentialsProvider(std::make_shared<ConfigFileCredentialsProvider>());
-  push_consumer.setNamesrvAddr("11.165.223.199:9876");
+  push_consumer.setNamesrvAddr("47.98.116.189:80");
   MessageListener* listener = new SampleMQMessageListener;
   push_consumer.setGroupName(cid);
   push_consumer.setInstanceName("instance_0");
