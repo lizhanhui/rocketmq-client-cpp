@@ -2,7 +2,6 @@
 #include "rocketmq/DefaultMQPullConsumer.h"
 #include "rocketmq/Logger.h"
 #include <cstdlib>
-#include <iostream>
 
 int main(int argc, char* argv[]) {
   const char* group = "GID_group003";
@@ -15,7 +14,7 @@ int main(int argc, char* argv[]) {
   logger.init();
 
   rocketmq::DefaultMQPullConsumer pull_consumer(group);
-  pull_consumer.setArn(arn);
+  pull_consumer.setResourceNamespace(arn);
   pull_consumer.setCredentialsProvider(std::make_shared<rocketmq::ConfigFileCredentialsProvider>());
   pull_consumer.setNamesrvAddr(name_server_list);
   pull_consumer.start();

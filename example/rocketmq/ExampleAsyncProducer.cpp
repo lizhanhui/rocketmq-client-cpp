@@ -174,7 +174,7 @@ int main(int argc, char* argv[]) {
   producer.compressBodyThreshold(256);
   const char* arn = "MQ_INST_1080056302921134_BXuIbML7";
   producer.setCredentialsProvider(std::make_shared<ConfigFileCredentialsProvider>());
-  producer.arn(arn);
+  producer.setResourceNamespace(arn);
   producer.setRegion("cn-hangzhou-pre");
   MQMessage message;
   message.setTopic(topic);

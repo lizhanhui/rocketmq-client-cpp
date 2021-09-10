@@ -31,7 +31,7 @@ int main(int argc, char* argv[]) {
 
   DefaultMQPushConsumer push_consumer(cid);
   push_consumer.setMessageModel(MessageModel::BROADCASTING);
-  push_consumer.setArn(arn);
+  push_consumer.setResourceNamespace(arn);
   push_consumer.setCredentialsProvider(std::make_shared<ConfigFileCredentialsProvider>());
   push_consumer.setNamesrvAddr("11.165.223.199:9876");
   MessageListener* listener = new SampleMQMessageListener;

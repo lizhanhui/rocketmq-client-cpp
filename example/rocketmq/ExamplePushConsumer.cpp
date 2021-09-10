@@ -30,7 +30,7 @@ int main(int argc, char* argv[]) {
   const char* arn = "MQ_INST_1080056302921134_BXuIbML7";
 
   DefaultMQPushConsumer push_consumer(cid);
-  push_consumer.setArn(arn);
+  push_consumer.setResourceNamespace(arn);
   push_consumer.setCredentialsProvider(std::make_shared<ConfigFileCredentialsProvider>());
   push_consumer.setNamesrvAddr("47.98.116.189:80");
   MessageListener* listener = new SampleMQMessageListener;
