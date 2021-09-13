@@ -27,11 +27,11 @@ int main(int argc, char* argv[]) {
 
   const char* cid = "GID_group003";
   const char *topic = "yc001";
-  const char* arn = "MQ_INST_1973281269661160_BXmPlOA6";
+  const char* resource_namespace = "MQ_INST_1973281269661160_BXmPlOA6";
 
   DefaultMQPushConsumer push_consumer(cid);
   push_consumer.setMessageModel(MessageModel::BROADCASTING);
-  push_consumer.setResourceNamespace(arn);
+  push_consumer.setResourceNamespace(resource_namespace);
   push_consumer.setCredentialsProvider(std::make_shared<ConfigFileCredentialsProvider>());
   push_consumer.setNamesrvAddr("11.165.223.199:9876");
   MessageListener* listener = new SampleMQMessageListener;
