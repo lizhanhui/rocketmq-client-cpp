@@ -3,7 +3,7 @@
 Apache RocketMQ supports two styles of APIs to acknowledge messages once they are successfully processed.
 
 1. Selective Acknowledgement
-   For each logical message queue(aka, topic_ partition), SDK manages offsets locally and periodically syncs committed offset to brokers in charge.
+   For each logical message queue(aka, topic partition), SDK manages offsets locally and periodically syncs committed offset to brokers in charge.
 2. Per Message Acknowledgement
    On consumption of each message, SDK acknowledge it to the broker instantly. Broker is responsible of managing consuming progress. 
 
