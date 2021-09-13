@@ -6,7 +6,6 @@
 #include <chrono>
 #include <cstdint>
 #include <string>
-#include <unistd.h>
 
 ROCKETMQ_NAMESPACE_BEGIN
 
