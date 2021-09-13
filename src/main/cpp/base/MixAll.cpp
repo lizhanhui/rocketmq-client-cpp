@@ -11,11 +11,12 @@
 #include <openssl/sha.h>
 
 #include "zlib.h"
-#include <pwd.h>
 
 #ifndef _WIN32
+#include <pwd.h>
 #include <unistd.h>
 #endif
+
 #include <cstdlib>
 
 ROCKETMQ_NAMESPACE_BEGIN
