@@ -5,6 +5,10 @@
 #include "absl/base/internal/endian.h"
 #include <cstring>
 
+#ifdef _WIN32
+#include <process.h>
+#endif
+
 ROCKETMQ_NAMESPACE_BEGIN
 
 const uint8_t UniqueIdGenerator::VERSION = 1;
@@ -19,7 +23,12 @@ UniqueIdGenerator::UniqueIdGenerator()
     SPDLOG_WARN("Failed to get network interface MAC address");
   }
 
+#ifdef _WIN32
+  int pid = _getpid();
+#else
   pid_t pid = getpid();
+#endif
+
   uint32_t big_endian_pid = absl::big_endian::FromHost32(pid);
   // Copy the lower 2 bytes
   memcpy(prefix_.data() + 6, reinterpret_cast<uint8_t*>(&big_endian_pid) + 2, sizeof(uint16_t));
