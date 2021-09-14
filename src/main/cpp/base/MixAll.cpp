@@ -15,6 +15,7 @@
 #ifndef _WIN32
 #include <pwd.h>
 #include <unistd.h>
+#include <arpa/inet.h>
 #endif
 
 #include <cstdlib>
