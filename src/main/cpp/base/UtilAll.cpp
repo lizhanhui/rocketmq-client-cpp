@@ -1,12 +1,9 @@
 #include "UtilAll.h"
 
 #include "LoggerImpl.h"
-#include "absl/strings/str_split.h"
 #include "src/core/lib/iomgr/gethostname.h"
 #include "zlib.h"
-#include <arpa/inet.h>
 #include <cstring>
-#include <ifaddrs.h>
 
 #if defined(__APPLE__)
 #include <net/if_dl.h>
@@ -20,19 +17,15 @@
 
 #endif
 
+#ifndef _WIN32
+#include <ifaddrs.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#endif
 
 ROCKETMQ_NAMESPACE_BEGIN
-
-#if defined(__APPLE__)
-#define AF_FAMILY AF_LINK
-#elif defined(__linux__)
-#define AF_FAMILY AF_PACKET
-#elif defined(_WIN32)
-#endif
 
 std::string UtilAll::hostname() {
   std::string host_name(grpc_gethostname());

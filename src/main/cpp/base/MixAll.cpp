@@ -1,24 +1,20 @@
 #include "MixAll.h"
 
 #include <chrono>
+#include <cstdlib>
 
 #include "absl/random/random.h"
 #include "absl/strings/str_split.h"
-
 #include "fmt/format.h"
-
-#include <openssl/md5.h>
-#include <openssl/sha.h>
-
+#include "openssl/md5.h"
+#include "openssl/sha.h"
 #include "zlib.h"
 
 #ifndef _WIN32
+#include <arpa/inet.h>
 #include <pwd.h>
 #include <unistd.h>
-#include <arpa/inet.h>
 #endif
-
-#include <cstdlib>
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -226,7 +222,7 @@ bool MixAll::homeDirectory(std::string& home_dir) {
   return false;
 #else
   char* home = getenv("USERPROFILE");
-  if(home) {
+  if (home) {
     home_dir.clear();
     home_dir.append(home, strlen(home));
     return true;
