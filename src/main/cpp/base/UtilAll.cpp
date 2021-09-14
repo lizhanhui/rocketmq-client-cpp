@@ -27,11 +27,12 @@
 #include <sys/types.h>
 #endif
 
+#include "asio.hpp"
+
 ROCKETMQ_NAMESPACE_BEGIN
 
 std::string UtilAll::hostname() {
-  std::string host_name(grpc_gethostname());
-  return host_name;
+  return asio::ip::host_name();
 }
 
 bool UtilAll::macAddress(std::vector<unsigned char>& mac) {

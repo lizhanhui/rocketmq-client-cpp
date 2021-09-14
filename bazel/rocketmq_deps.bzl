@@ -118,3 +118,13 @@ def rocketmq_deps():
             "https://github.com/lizhanhui/ThreadPool/archive/refs/tags/v1.0.tar.gz",
         ],
     )
+
+    maybe(
+        http_archive,
+        name = "asio",
+        build_file = "@org_apache_rocketmq//third_party:asio.BUILD",
+        strip_prefix = "asio-1.18.2",
+        urls = [
+            "https://github.com/lizhanhui/asio/archive/refs/tags/v1.18.2.tar.gz",
+        ],
+    )
