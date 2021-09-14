@@ -4,7 +4,6 @@
 #include "UtilAll.h"
 #include "absl/base/internal/endian.h"
 #include <cstring>
-#include <sys/socket.h>
 
 ROCKETMQ_NAMESPACE_BEGIN
 
