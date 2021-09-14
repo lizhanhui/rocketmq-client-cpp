@@ -2,6 +2,10 @@
 #include "UtilAll.h"
 #include <sstream>
 
+#ifndef _WIN32
+#include <unistd.h>
+#endif
+
 ROCKETMQ_NAMESPACE_BEGIN
 
 #ifndef CLIENT_VERSION_MAJOR
