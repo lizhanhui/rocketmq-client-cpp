@@ -1,7 +1,6 @@
 #include "ClientConfigImpl.h"
 #include "UtilAll.h"
 #include <sstream>
-#include <unistd.h>
 
 ROCKETMQ_NAMESPACE_BEGIN
 

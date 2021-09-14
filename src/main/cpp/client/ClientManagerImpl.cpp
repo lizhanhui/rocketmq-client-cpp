@@ -36,8 +36,10 @@ ClientManagerImpl::ClientManagerImpl(std::string resource_namespace)
 
   // Make use of encryption only at the moment.
   std::vector<grpc::experimental::IdentityKeyCertPair> identity_key_cert_list;
-  grpc::experimental::IdentityKeyCertPair pair{.private_key = TlsHelper::client_private_key,
-                                               .certificate_chain = TlsHelper::client_certificate_chain};
+  grpc::experimental::IdentityKeyCertPair pair{};
+  pair.private_key = TlsHelper::client_private_key;
+  pair.certificate_chain = TlsHelper::client_certificate_chain;
+
   identity_key_cert_list.emplace_back(pair);
   certificate_provider_ =
       std::make_shared<grpc::experimental::StaticDataCertificateProvider>(TlsHelper::CA, identity_key_cert_list);
@@ -836,7 +838,7 @@ bool ClientManagerImpl::wrapMessage(const rmq::Message& item, MQMessageExt& mess
   }
   }
 
-  timeval tv{.tv_sec = 0, .tv_usec = 0};
+  timeval tv{};
 
   // Message-type
   MessageType message_type;
