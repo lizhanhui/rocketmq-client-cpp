@@ -10,7 +10,9 @@
 #include "openssl/sha.h"
 #include "zlib.h"
 
-#ifndef _WIN32
+#ifdef _WIN32
+#include <winsock.h>
+#else
 #include <arpa/inet.h>
 #include <pwd.h>
 #include <unistd.h>
