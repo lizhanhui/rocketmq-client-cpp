@@ -43,6 +43,7 @@ cc_test(
     ],
     deps = [
         "//src/main/cpp/client/mocks:client_mocks",
+        "//src/main/cpp/base:curl_http_client",
         "@com_google_googletest//:gtest_main",
     ]
 )
@@ -54,6 +55,7 @@ cc_test(
     ],
     deps = [
         "//src/main/cpp/client/mocks:client_mocks",
+        "//src/main/cpp/base:curl_http_client",
         "@com_google_googletest//:gtest_main",
     ],
 )

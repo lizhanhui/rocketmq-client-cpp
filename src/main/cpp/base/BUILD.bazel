@@ -15,23 +15,6 @@ cc_library(
 )
 
 cc_library(
-    name = "ghttp_client",
-    hdrs = [
-        "include/GHttpClient.h",
-    ],
-    srcs = [
-        "GHttpClient.cpp",
-    ],
-    deps = [
-        ":http_client_interface",
-        "//src/main/cpp/log:log_library",
-        "@com_github_fmtlib_fmt//:fmtlib",
-        "@com_github_grpc_grpc//:grpc",
-    ],
-    strip_include_prefix = "//src/main/cpp/base/include",
-)
-
-cc_library(
     name = "curl_http_client",
     hdrs = [
         "include/CurlHttpClient.h",
@@ -62,7 +45,7 @@ cc_library(
     ],
     strip_include_prefix = "//src/main/cpp/base/include",
     deps = [
-        ":ghttp_client",
+        ":curl_http_client",
     ],
 )
 

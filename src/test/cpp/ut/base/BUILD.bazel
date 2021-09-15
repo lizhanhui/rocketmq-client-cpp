@@ -109,6 +109,7 @@ cc_test(
     ],
     deps = [
         "//src/main/cpp/base:base_library",
+        "//src/main/cpp/base:curl_http_client",
         "//src/main/cpp/base/mocks:base_mocks",
         "@com_google_googletest//:gtest_main",
     ]
