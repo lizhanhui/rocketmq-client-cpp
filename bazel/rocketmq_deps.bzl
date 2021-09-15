@@ -118,3 +118,12 @@ def rocketmq_deps():
             "https://github.com/lizhanhui/asio/archive/refs/tags/v1.18.2.tar.gz",
         ],
     )
+
+    # Curl library
+    maybe(
+        http_archive,
+        name = "com_github_curl",
+        build_file = "@org_apache_rocketmq//third_party:curl.BUILD",
+        strip_prefix = "curl-master",
+        urls = ["https://github.com/curl/curl/archive/master.zip"],
+    )
