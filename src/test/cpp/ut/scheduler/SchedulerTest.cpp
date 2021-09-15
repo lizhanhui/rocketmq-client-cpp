@@ -81,4 +81,29 @@ TEST_F(SchedulerTest, testPeriodicShot) {
   scheduler.shutdown();
 }
 
+TEST_F(SchedulerTest, testSingleShotWithZeroDelay) {
+  SchedulerImpl scheduler;
+  scheduler.start();
+  absl::Mutex mtx;
+  absl::CondVar cv;
+  int callback_fire_count{0};
+  auto callback = [&]() {
+    absl::MutexLock lock(&mtx);
+    cv.Signal();
+    callback_fire_count++;
+  };
+
+  scheduler.schedule(callback, "single-shot-with-0-delay", std::chrono::milliseconds(0), std::chrono::milliseconds(0));
+
+  // Wait till callback is executed.
+  {
+    absl::MutexLock lock(&mtx);
+    if (!callback_fire_count) {
+      cv.Wait(&mtx);
+    }
+  }
+
+  scheduler.shutdown();
+}
+
 ROCKETMQ_NAMESPACE_END

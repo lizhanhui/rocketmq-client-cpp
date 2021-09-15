@@ -85,20 +85,8 @@ std::uint32_t SchedulerImpl::schedule(const std::function<void(void)>& functor, 
     id = ++task_id;
     tasks_.insert({id, task});
   }
-
-  bool has_initial_delay = delay.count();
-  asio::steady_timer* timer = nullptr;
-  if (has_initial_delay) {
-    timer = new asio::steady_timer(context_, delay);
-    SPDLOG_DEBUG("Timer-task[name={}] to fire in {}ms", task_name, delay.count());
-  } else if (interval.count()) {
-    timer = new asio::steady_timer(context_, interval);
-    SPDLOG_DEBUG("Timer-task[name={}] to fire in {}ms", task_name, interval.count());
-  } else {
-    SPDLOG_ERROR("Bad initial delay and interval period");
-    return 0;
-  }
-
+  asio::steady_timer* timer = timer = new asio::steady_timer(context_, delay);
+  SPDLOG_DEBUG("Timer-task[name={}] to fire in {}ms", task_name, delay.count());
   timer->async_wait(std::bind(&SchedulerImpl::execute, std::placeholders::_1, timer, std::weak_ptr<TimerTask>(task)));
   return id;
 }
