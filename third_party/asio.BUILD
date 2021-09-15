@@ -6,5 +6,10 @@ cc_library(
     strip_include_prefix = "include",
     defines = [
         "ASIO_STANDALONE",
+        "ASIO_HAS_STD_ADDRESSOF",
+        "ASIO_HAS_STD_ARRAY",
+        "ASIO_HAS_CSTDINT",
+        "ASIO_HAS_STD_SHARED_PTR",
+        "ASIO_HAS_STD_TYPE_TRAITS",
     ],
 )
