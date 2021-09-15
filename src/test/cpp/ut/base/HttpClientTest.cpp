@@ -39,7 +39,7 @@ TEST_F(HttpClientTest, testGet) {
   http_client.get(HttpProtocol::HTTP, "www.baidu.com", 80, "/", cb);
 }
 
-TEST_F(HttpClientTest, testJMEnv) {
+TEST_F(HttpClientTest, DISABLED_testJMEnv) {
   auto cb = [](int code, const absl::flat_hash_map<std::string, std::string>& headers, const std::string& body) {
     SPDLOG_INFO("Response received. Status-code: {}, Body: {}", code, body);
   };
