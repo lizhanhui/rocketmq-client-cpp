@@ -8,7 +8,6 @@ cc_library(
     srcs = glob(["*.cpp"]),
     strip_include_prefix = "//src/main/cpp/rocketmq/include",
     deps = [
-        "//src/main/cpp/base:curl_http_client",
         "//src/main/cpp/client:client_library",
         "//src/main/cpp/tracing/exporters:otlp_exporter",
         "//src/main/cpp/log:log_library",

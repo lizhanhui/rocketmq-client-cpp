@@ -3,59 +3,18 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
-    name = "http_client_interface",
-    hdrs = [
-        "include/HttpClient.h",
-    ],
-    strip_include_prefix = "//src/main/cpp/base/include",
-    deps = [
-        "//api:rocketmq_interface",
-        "@com_google_absl//absl/container:flat_hash_map",
-    ],
-)
-
-cc_library(
-    name = "curl_http_client",
-    hdrs = [
-        "include/CurlHttpClient.h",
-    ],
-    srcs = [
-        "CurlHttpClient.cpp",
-    ],
-    strip_include_prefix = "//src/main/cpp/base/include",
-    deps = [
-        ":http_client_interface",
-        "//src/main/cpp/log:log_library",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/synchronization",        
-        "@com_github_curl//:curl",
-        "@com_github_fmtlib_fmt//:fmtlib",
-    ],
-)
-
-cc_library(
-    name = "top_addressing",
-    hdrs = [
-        "include/TopAddressing.h",
-        "include/HostInfo.h"
-    ],
-    srcs = [
-        "TopAddressing.cpp",
-        "HostInfo.cpp",
-    ],
-    strip_include_prefix = "//src/main/cpp/base/include",
-    deps = [
-        ":curl_http_client",
-    ],
-)
-
-cc_library(
     name = "base_library",
     hdrs = glob(["include/*.h"]),
     srcs = glob(["*.cpp"]),
     strip_include_prefix = "//src/main/cpp/base/include",
     deps = [
         "//src/main/cpp/log:log_library",
+        "@com_github_curl//:curl",
+        "@com_github_fmtlib_fmt//:fmtlib",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/synchronization",        
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
