@@ -74,8 +74,6 @@ void Scheduler::onTrigger(void* arg, grpc_error_handle error) {
 
 Scheduler::Scheduler() { spdlog::set_level(spdlog::level::debug); }
 
-Scheduler::~Scheduler() {}
-
 std::uintptr_t Scheduler::schedule(const std::function<void(void)>& functor, const std::string& task_name,
                                    std::chrono::milliseconds delay, std::chrono::milliseconds interval) {
   auto timer_task = new TimerTask();

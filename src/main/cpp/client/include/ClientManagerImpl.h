@@ -11,7 +11,7 @@
 #include "RpcClientImpl.h"
 #include "Scheduler.h"
 #include "SendMessageContext.h"
-#include "ThreadPool.h"
+#include "ThreadPoolImpl.h"
 #include "TopAddressing.h"
 #include "TopicRouteChangeCallback.h"
 #include "TopicRouteData.h"
@@ -221,7 +221,7 @@ private:
   std::uintptr_t stats_handle_{0};
 
   std::shared_ptr<CompletionQueue> completion_queue_;
-  std::unique_ptr<ThreadPool> callback_thread_pool_;
+  std::unique_ptr<ThreadPoolImpl> callback_thread_pool_;
 
   std::thread completion_queue_thread_;
 

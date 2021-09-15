@@ -25,7 +25,7 @@ class Scheduler {
 public:
   Scheduler();
 
-  ~Scheduler();
+  ~Scheduler() = default;
 
   /**
    * @functor Pointer to the functor. Lifecycle of this functor should be maintained by the caller.

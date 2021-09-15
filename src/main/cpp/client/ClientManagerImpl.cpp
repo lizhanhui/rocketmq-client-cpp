@@ -27,7 +27,7 @@ ROCKETMQ_NAMESPACE_BEGIN
 ClientManagerImpl::ClientManagerImpl(std::string resource_namespace)
     : resource_namespace_(std::move(resource_namespace)), state_(State::CREATED),
       completion_queue_(std::make_shared<CompletionQueue>()),
-      callback_thread_pool_(absl::make_unique<ThreadPool>(std::thread::hardware_concurrency())),
+      callback_thread_pool_(absl::make_unique<ThreadPoolImpl>(std::thread::hardware_concurrency())),
       latency_histogram_("Message-Latency", 11) {
   spdlog::set_level(spdlog::level::trace);
   assignLabels(latency_histogram_);
@@ -63,6 +63,8 @@ void ClientManagerImpl::start() {
     return;
   }
   state_.store(State::STARTING, std::memory_order_relaxed);
+
+  callback_thread_pool_->start();
 
   std::weak_ptr<ClientManagerImpl> client_instance_weak_ptr = shared_from_this();
 
@@ -102,8 +104,10 @@ void ClientManagerImpl::shutdown() {
     SPDLOG_WARN("Unexpected client instance state: {}", state_.load(std::memory_order_relaxed));
     return;
   }
-
   state_.store(STOPPING, std::memory_order_relaxed);
+
+  callback_thread_pool_->shutdown();
+
   if (health_check_handle_) {
     scheduler_.cancel(health_check_handle_);
   }
@@ -302,7 +306,7 @@ void ClientManagerImpl::pollCompletionQueue() {
         SPDLOG_WARN("CompletionQueue#Next assigned ok false, indicating the call is dead");
       }
       auto callback = [invocation_context, ok]() { invocation_context->onCompletion(ok); };
-      callback_thread_pool_->enqueue(callback);
+      callback_thread_pool_->submit(callback);
     }
     SPDLOG_INFO("CompletionQueue is fully drained and shut down");
   }

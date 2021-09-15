@@ -110,16 +110,6 @@ def rocketmq_deps():
 
     maybe(
         http_archive,
-        name = "com_github_progschj_ThreadPool",
-        build_file = "@org_apache_rocketmq//third_party:ThreadPool.BUILD",
-        strip_prefix = "ThreadPool-1.0",
-        urls = [
-            "https://github.com/lizhanhui/ThreadPool/archive/refs/tags/v1.0.tar.gz",
-        ],
-    )
-
-    maybe(
-        http_archive,
         name = "asio",
         build_file = "@org_apache_rocketmq//third_party:asio.BUILD",
         strip_prefix = "asio-1.18.2",

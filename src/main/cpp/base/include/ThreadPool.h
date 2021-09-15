@@ -1,3 +1,5 @@
+#pragma once
+
 #include "rocketmq/RocketMQ.h"
 #include <functional>
 

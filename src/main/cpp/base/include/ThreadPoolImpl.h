@@ -1,3 +1,5 @@
+#pragma once
+
 #include "ThreadPool.h"
 #include "absl/synchronization/mutex.h"
 #include "asio/io_context.hpp"
