@@ -65,6 +65,7 @@ void ClientManagerImpl::start() {
   state_.store(State::STARTING, std::memory_order_relaxed);
 
   callback_thread_pool_->start();
+  scheduler_.start();
 
   std::weak_ptr<ClientManagerImpl> client_instance_weak_ptr = shared_from_this();
 
@@ -74,15 +75,15 @@ void ClientManagerImpl::start() {
       client_instance->doHealthCheck();
     }
   };
-  health_check_handle_ = scheduler_.schedule(health_check_functor, HEALTH_CHECK_TASK_NAME, std::chrono::seconds(5),
-                                             std::chrono::seconds(5));
+  health_check_task_id_ = scheduler_.schedule(health_check_functor, HEALTH_CHECK_TASK_NAME, std::chrono::seconds(5),
+                                              std::chrono::seconds(5));
   auto heartbeat_functor = [client_instance_weak_ptr]() {
     auto client_instance = client_instance_weak_ptr.lock();
     if (client_instance) {
       client_instance->doHeartbeat();
     }
   };
-  heartbeat_handle_ =
+  heartbeat_task_id_ =
       scheduler_.schedule(heartbeat_functor, HEARTBEAT_TASK_NAME, std::chrono::seconds(1), std::chrono::seconds(10));
 
   completion_queue_thread_ = std::thread(std::bind(&ClientManagerImpl::pollCompletionQueue, this));
@@ -93,7 +94,7 @@ void ClientManagerImpl::start() {
       client_instance->logStats();
     }
   };
-  stats_handle_ =
+  stats_task_id_ =
       scheduler_.schedule(stats_functor_, STATS_TASK_NAME, std::chrono::seconds(0), std::chrono::seconds(10));
   state_.store(State::STARTED, std::memory_order_relaxed);
 }
@@ -108,17 +109,18 @@ void ClientManagerImpl::shutdown() {
 
   callback_thread_pool_->shutdown();
 
-  if (health_check_handle_) {
-    scheduler_.cancel(health_check_handle_);
+  if (health_check_task_id_) {
+    scheduler_.cancel(health_check_task_id_);
   }
 
-  if (heartbeat_handle_) {
-    scheduler_.cancel(heartbeat_handle_);
+  if (heartbeat_task_id_) {
+    scheduler_.cancel(heartbeat_task_id_);
   }
 
-  if (stats_handle_) {
-    scheduler_.cancel(stats_handle_);
+  if (stats_task_id_) {
+    scheduler_.cancel(stats_task_id_);
   }
+  scheduler_.shutdown();
 
   {
     absl::MutexLock lk(&rpc_clients_mtx_);
