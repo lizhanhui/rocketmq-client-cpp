@@ -85,7 +85,7 @@ std::uint32_t SchedulerImpl::schedule(const std::function<void(void)>& functor, 
     id = ++task_id;
     tasks_.insert({id, task});
   }
-  asio::steady_timer* timer = timer = new asio::steady_timer(context_, delay);
+  asio::steady_timer* timer = new asio::steady_timer(context_, delay);
   SPDLOG_DEBUG("Timer-task[name={}] to fire in {}ms", task_name, delay.count());
   timer->async_wait(std::bind(&SchedulerImpl::execute, std::placeholders::_1, timer, std::weak_ptr<TimerTask>(task)));
   return id;
