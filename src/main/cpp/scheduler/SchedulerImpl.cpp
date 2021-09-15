@@ -26,7 +26,7 @@ void SchedulerImpl::start() {
   State expected = State::CREATED;
   if (state_.compare_exchange_strong(expected, State::STARTING, std::memory_order_relaxed)) {
 
-    for (int i = 0; i < std::thread::hardware_concurrency(); i++) {
+    for (unsigned int i = 0; i < std::thread::hardware_concurrency(); i++) {
       auto worker = std::thread([this]() {
         {
           State expect = State::STARTING;

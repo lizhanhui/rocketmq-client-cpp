@@ -1,7 +1,9 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <functional>
+#include <string>
 
 #include "rocketmq/RocketMQ.h"
 

@@ -1,14 +1,6 @@
 #pragma once
 #include "Scheduler.h"
-#include "absl/base/thread_annotations.h"
-#include "absl/container/flat_hash_map.h"
-#include "absl/synchronization/mutex.h"
-#include "asio.hpp"
-#include "asio/error_code.hpp"
-#include "asio/executor_work_guard.hpp"
-#include "asio/io_context.hpp"
-#include "asio/steady_timer.hpp"
-#include "rocketmq/State.h"
+
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -16,6 +8,12 @@
 #include <memory>
 #include <thread>
 #include <vector>
+
+#include "absl/base/thread_annotations.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/synchronization/mutex.h"
+#include "asio.hpp"
+#include "rocketmq/State.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -62,7 +60,7 @@ private:
   absl::flat_hash_map<std::uint32_t, std::shared_ptr<TimerTask>> tasks_ GUARDED_BY(tasks_mtx_);
   absl::Mutex tasks_mtx_;
 
-  static void execute(const asio::error_code &ec, asio::steady_timer* timer, std::weak_ptr<TimerTask> task);
+  static void execute(const asio::error_code& ec, asio::steady_timer* timer, std::weak_ptr<TimerTask> task);
 };
 
 ROCKETMQ_NAMESPACE_END
