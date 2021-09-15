@@ -32,6 +32,25 @@ cc_library(
 )
 
 cc_library(
+    name = "curl_http_client",
+    hdrs = [
+        "include/CurlHttpClient.h",
+    ],
+    srcs = [
+        "CurlHttpClient.cpp",
+    ],
+    strip_include_prefix = "//src/main/cpp/base/include",
+    deps = [
+        ":http_client_interface",
+        "//src/main/cpp/log:log_library",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/synchronization",        
+        "@com_github_curl//:curl",
+        "@com_github_fmtlib_fmt//:fmtlib",
+    ],
+)
+
+cc_library(
     name = "top_addressing",
     hdrs = [
         "include/TopAddressing.h",
