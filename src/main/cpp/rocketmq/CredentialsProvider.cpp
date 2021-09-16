@@ -11,7 +11,6 @@
 #include "google/protobuf/util/json_util.h"
 #include "spdlog/spdlog.h"
 
-#include "HttpClientImpl.h"
 #include "MixAll.h"
 #include "StsCredentialsProviderImpl.h"
 #include "rocketmq/Logger.h"
@@ -102,8 +101,7 @@ StsCredentialsProvider::StsCredentialsProvider(std::string ram_role_name)
 Credentials StsCredentialsProvider::getCredentials() { return impl_->getCredentials(); }
 
 StsCredentialsProviderImpl::StsCredentialsProviderImpl(std::string ram_role_name)
-    : ram_role_name_(std::move(ram_role_name)) {
-}
+    : ram_role_name_(std::move(ram_role_name)) {}
 
 StsCredentialsProviderImpl::~StsCredentialsProviderImpl() { http_client_->shutdown(); }
 
