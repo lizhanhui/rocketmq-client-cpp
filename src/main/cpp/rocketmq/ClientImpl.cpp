@@ -12,7 +12,7 @@
 
 #include "ClientImpl.h"
 #include "ClientManagerFactory.h"
-#include "CurlHttpClient.h"
+#include "HttpClientImpl.h"
 #include "InvocationContext.h"
 #include "LoggerImpl.h"
 #include "MessageAccessor.h"

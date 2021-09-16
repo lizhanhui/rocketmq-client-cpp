@@ -11,7 +11,7 @@
 #include "google/protobuf/util/json_util.h"
 #include "spdlog/spdlog.h"
 
-#include "CurlHttpClient.h"
+#include "HttpClientImpl.h"
 #include "MixAll.h"
 #include "StsCredentialsProviderImpl.h"
 #include "rocketmq/Logger.h"
@@ -102,7 +102,7 @@ StsCredentialsProvider::StsCredentialsProvider(std::string ram_role_name)
 Credentials StsCredentialsProvider::getCredentials() { return impl_->getCredentials(); }
 
 StsCredentialsProviderImpl::StsCredentialsProviderImpl(std::string ram_role_name)
-    : ram_role_name_(std::move(ram_role_name)), http_client_(absl::make_unique<CurlHttpClient>()) {
+    : ram_role_name_(std::move(ram_role_name)), http_client_(absl::make_unique<HttpClientImpl>()) {
   http_client_->start();
 }
 
@@ -124,8 +124,7 @@ void StsCredentialsProviderImpl::refresh() {
   absl::Mutex sync_mtx;
   absl::CondVar sync_cv;
   bool completed = false;
-  auto callback = [&, this](int code, const absl::flat_hash_map<std::string, std::string>& headers,
-                            const std::string& body) {
+  auto callback = [&, this](int code, const std::multimap<std::string, std::string>& headers, const std::string& body) {
     SPDLOG_DEBUG("Received STS response. Code: {}", code);
     if (static_cast<int>(HttpStatus::OK) == code) {
       google::protobuf::Struct doc;

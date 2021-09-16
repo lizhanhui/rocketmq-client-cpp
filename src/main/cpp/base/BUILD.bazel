@@ -9,7 +9,6 @@ cc_library(
     strip_include_prefix = "//src/main/cpp/base/include",
     deps = [
         "//src/main/cpp/log:log_library",
-        "@com_github_curl//:curl",
         "@com_github_fmtlib_fmt//:fmtlib",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -21,10 +20,10 @@ cc_library(
         "@com_github_gabime_spdlog//:spdlog",
         "@com_github_grpc_grpc//:grpc",
         "@com_googlesource_code_re2//:re2",
-        "@zlib//:zlib",
         "@boringssl//:crypto",
         "@boringssl//:ssl",
         "//external:madler_zlib",
+        "@com_github_yhirose_cpp_httplib//:cpp_httplib",
         "@asio//:asio",
     ],
 )

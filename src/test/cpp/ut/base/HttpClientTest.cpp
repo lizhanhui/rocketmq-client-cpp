@@ -5,7 +5,7 @@
 
 #include "gtest/gtest.h"
 
-#include "CurlHttpClient.h"
+#include "HttpClientImpl.h"
 #include "LoggerImpl.h"
 #include "rocketmq/RocketMQ.h"
 
@@ -26,13 +26,13 @@ public:
   }
 
 protected:
-  CurlHttpClient http_client;
+  HttpClientImpl http_client;
 };
 
 TEST_F(HttpClientTest, testBasics) {}
 
 TEST_F(HttpClientTest, testGet) {
-  auto cb = [](int code, const absl::flat_hash_map<std::string, std::string>& headers, const std::string& body) {
+  auto cb = [](int code, const std::multimap<std::string, std::string>& headers, const std::string& body) {
     SPDLOG_INFO("Response received. Status-code: {}, Body: {}", code, body);
   };
 
@@ -40,7 +40,7 @@ TEST_F(HttpClientTest, testGet) {
 }
 
 TEST_F(HttpClientTest, DISABLED_testJMEnv) {
-  auto cb = [](int code, const absl::flat_hash_map<std::string, std::string>& headers, const std::string& body) {
+  auto cb = [](int code, const std::multimap<std::string, std::string>& headers, const std::string& body) {
     SPDLOG_INFO("Response received. Status-code: {}, Body: {}", code, body);
   };
 

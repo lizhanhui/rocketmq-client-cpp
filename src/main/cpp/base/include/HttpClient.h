@@ -2,8 +2,7 @@
 
 #include <cstdint>
 #include <functional>
-
-#include "absl/container/flat_hash_map.h"
+#include <map>
 
 #include "rocketmq/RocketMQ.h"
 
@@ -28,11 +27,8 @@ public:
   virtual void shutdown() = 0;
 
   virtual void
-  get(HttpProtocol protocol, const std::string &host, std::uint16_t port,
-      const std::string &path,
-      const std::function<
-          void(int, const absl::flat_hash_map<std::string, std::string> &,
-               const std::string &)> &cb) = 0;
+  get(HttpProtocol protocol, const std::string& host, std::uint16_t port, const std::string& path,
+      const std::function<void(int, const std::multimap<std::string, std::string>&, const std::string&)>& cb) = 0;
 };
 
 ROCKETMQ_NAMESPACE_END
