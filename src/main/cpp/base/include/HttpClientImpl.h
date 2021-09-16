@@ -2,9 +2,6 @@
 
 #include "HttpClient.h"
 
-#include <chrono>
-#include <string>
-
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/synchronization/mutex.h"
