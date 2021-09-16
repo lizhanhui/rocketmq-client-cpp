@@ -2,8 +2,9 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
-#include "rocketmq/CredentialsProvider.h"
+
 #include "HttpClient.h"
+#include "rocketmq/CredentialsProvider.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -17,7 +18,7 @@ public:
 
   /**
    * @brief Expose http_client for test purpose only.
-   * 
+   *
    * @param http_client
    */
   void setHttpClient(std::unique_ptr<HttpClient> http_client) {
@@ -25,14 +26,14 @@ public:
   }
 
 private:
-  static const char* RAM_ROLE_HOST;
-  static const char* RAM_ROLE_URL_PREFIX;
-  static const char* FIELD_ACCESS_KEY;
-  static const char* FIELD_ACCESS_SECRET;
-  static const char* FIELD_SESSION_TOKEN;
-  static const char* FIELD_EXPIRATION;
-  static const char* EXPIRATION_DATE_TIME_FORMAT;
-  
+  static const char *RAM_ROLE_HOST;
+  static const char *RAM_ROLE_URL_PREFIX;
+  static const char *FIELD_ACCESS_KEY;
+  static const char *FIELD_ACCESS_SECRET;
+  static const char *FIELD_SESSION_TOKEN;
+  static const char *FIELD_EXPIRATION;
+  static const char *EXPIRATION_DATE_TIME_FORMAT;
+
   std::string ram_role_name_;
 
   std::string access_key_ GUARDED_BY(mtx_);
