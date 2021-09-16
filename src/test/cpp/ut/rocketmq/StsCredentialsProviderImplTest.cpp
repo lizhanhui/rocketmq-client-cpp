@@ -34,7 +34,7 @@ public:
         };
 
     EXPECT_CALL(*http_client_, get).Times(testing::AtLeast(1)).WillRepeatedly(testing::Invoke(http_get_action));
-    sts_credentials_provider->setHttpClient(std::move(http_client_));
+    sts_credentials_provider->withHttpClient(std::move(http_client_));
   }
 
   void TearDown() override { grpc_shutdown(); }

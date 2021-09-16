@@ -102,8 +102,7 @@ StsCredentialsProvider::StsCredentialsProvider(std::string ram_role_name)
 Credentials StsCredentialsProvider::getCredentials() { return impl_->getCredentials(); }
 
 StsCredentialsProviderImpl::StsCredentialsProviderImpl(std::string ram_role_name)
-    : ram_role_name_(std::move(ram_role_name)), http_client_(absl::make_unique<HttpClientImpl>()) {
-  http_client_->start();
+    : ram_role_name_(std::move(ram_role_name)) {
 }
 
 StsCredentialsProviderImpl::~StsCredentialsProviderImpl() { http_client_->shutdown(); }
