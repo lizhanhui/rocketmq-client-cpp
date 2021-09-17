@@ -80,7 +80,7 @@ void DynamicNameServerResolver::refreshNameServerList(const std::vector<std::str
 }
 
 bool DynamicNameServerResolver::shouldRefresh() const {
-  return last_resolve_timepoint_ + refresh_interval_ >= std::chrono::steady_clock::now();
+  return last_resolve_timepoint_ + refresh_interval_ <= std::chrono::steady_clock::now();
 }
 
 ROCKETMQ_NAMESPACE_END
