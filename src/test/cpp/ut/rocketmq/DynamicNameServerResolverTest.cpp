@@ -33,7 +33,11 @@ public:
     ON_CALL(*http_client, get).WillByDefault(testing::Invoke(callback));
 
     resolver_->injectHttpClient(std::move(http_client));
+
+    resolver_->start();
   }
+
+  void TearDown() override { resolver_->shutdown(); }
 
 protected:
   std::string endpoint_{"http://jmenv.tbsite.net:8080/rocketmq/nsaddr"};
@@ -46,6 +50,12 @@ TEST_F(DynamicNameServerResolverTest, testResolve) {
   ASSERT_FALSE(name_server_list.empty());
   std::string resolved = absl::StrJoin(name_server_list, ";");
   ASSERT_EQ(name_server_list_, resolved);
+
+  std::string first{"10.0.0.0:9876"};
+  EXPECT_EQ(first, resolver_->current());
+
+  std::string second{"10.0.0.1:9876"};
+  EXPECT_EQ(second, resolver_->next());
 }
 
 ROCKETMQ_NAMESPACE_END
