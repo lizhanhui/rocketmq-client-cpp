@@ -199,3 +199,14 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "static_name_server_resolver_test",
+    srcs = [
+        "StaticNameServerResolverTest.cpp",
+    ],
+    deps = [
+        "//src/main/cpp/rocketmq:rocketmq_library",
+        "@com_google_googletest//:gtest_main",
+    ],
+)

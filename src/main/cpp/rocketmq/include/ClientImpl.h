@@ -8,6 +8,7 @@
 #include "rocketmq/MQMessageExt.h"
 #include "rocketmq/State.h"
 #include <chrono>
+#include <cstdint>
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -60,14 +61,14 @@ protected:
       inflight_route_requests_ GUARDED_BY(inflight_route_requests_mtx_);
   absl::Mutex inflight_route_requests_mtx_ ACQUIRED_BEFORE(topic_route_table_mtx_); // Protects inflight_route_requests_
   static const char* UPDATE_ROUTE_TASK_NAME;
-  std::uintptr_t route_update_handle_{0};
+  std::uint32_t route_update_handle_{0};
 
   // Name server list management
   std::vector<std::string> name_server_list_ GUARDED_BY(name_server_list_mtx_);
   absl::Mutex name_server_list_mtx_; // protects name_server_list_
 
   static const char* UPDATE_NAME_SERVER_LIST_TASK_NAME;
-  std::uintptr_t name_server_update_handle_{0};
+  std::uint32_t name_server_update_handle_{0};
 
   absl::flat_hash_map<std::string, absl::Time> multiplexing_requests_;
   absl::Mutex multiplexing_requests_mtx_;
