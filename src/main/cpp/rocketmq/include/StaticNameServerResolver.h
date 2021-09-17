@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <atomic>
 
 #include "absl/strings/string_view.h"
 
