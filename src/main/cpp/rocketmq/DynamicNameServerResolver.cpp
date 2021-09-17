@@ -83,4 +83,8 @@ bool DynamicNameServerResolver::shouldRefresh() const {
   return last_resolve_timepoint_ + refresh_interval_ <= std::chrono::steady_clock::now();
 }
 
+void DynamicNameServerResolver::injectHttpClient(std::unique_ptr<HttpClient> http_client) {
+  top_addressing_->injectHttpClient(std::move(http_client));
+}
+
 ROCKETMQ_NAMESPACE_END

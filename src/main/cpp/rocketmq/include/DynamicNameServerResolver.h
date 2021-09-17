@@ -24,6 +24,8 @@ public:
 
   std::vector<std::string> resolve() override LOCKS_EXCLUDED(name_server_list_mtx_);
 
+  void injectHttpClient(std::unique_ptr<HttpClient> http_client);
+
 private:
   std::string endpoint_;
 
