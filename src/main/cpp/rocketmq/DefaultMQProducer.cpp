@@ -119,7 +119,7 @@ void DefaultMQProducer::setCredentialsProvider(CredentialsProviderPtr credential
 
 void DefaultMQProducer::setRegion(const std::string& region) { impl_->region(region); }
 
-TransactionPtr DefaultMQProducer::prepare(const MQMessage& message) {
+TransactionPtr DefaultMQProducer::prepare(MQMessage& message) {
   auto transaction = impl_->prepare(message);
   return transaction;
 }
