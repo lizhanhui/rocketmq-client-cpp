@@ -114,6 +114,8 @@ public:
 
   void setRegion(const std::string& region);
 
+  TransactionPtr prepare(const MQMessage& message);
+
 private:
   std::shared_ptr<ProducerImpl> impl_;
 };
