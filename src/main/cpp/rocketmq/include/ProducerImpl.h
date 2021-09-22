@@ -126,7 +126,7 @@ private:
 
   void ensureRunning() const;
 
-  void validate(const MQMessage& message);
+  bool validate(const MQMessage& message);
 
   void send0(const MQMessage& message, SendCallback* callback, std::vector<MQMessageQueue> list, int max_attempt_times);
 

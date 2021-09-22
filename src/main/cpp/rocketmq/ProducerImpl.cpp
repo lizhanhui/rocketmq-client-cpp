@@ -59,7 +59,7 @@ void ProducerImpl::ensureRunning() const {
   }
 }
 
-void ProducerImpl::validate(const MQMessage& message) {}
+bool ProducerImpl::validate(const MQMessage& message) { return MixAll::validate(message); }
 
 std::string ProducerImpl::wrapSendMessageRequest(const MQMessage& message, SendMessageRequest& request,
                                                  const MQMessageQueue& message_queue) {
@@ -329,6 +329,13 @@ void ProducerImpl::sendImpl(RetrySendCallback* callback) {
 void ProducerImpl::send0(const MQMessage& message, SendCallback* callback, std::vector<MQMessageQueue> list,
                          int max_attempt_times) {
   assert(callback);
+
+  if (!validate(message)) {
+    MQClientException e("Message is illegal", MESSAGE_ILLEGAL, __FILE__, __LINE__);
+    callback->onException(e);
+    return;
+  }
+
   if (list.empty()) {
     MQClientException e("Topic route not found", NO_TOPIC_ROUTE_INFO, __FILE__, __LINE__);
     callback->onException(e);

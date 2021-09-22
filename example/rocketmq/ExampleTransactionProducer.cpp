@@ -20,11 +20,11 @@ int main(int argc, char* argv[]) {
   message.setTopic(topic);
   message.setTags("TagA");
   message.setKey("Yuck! Why-plural?");
+  message.setBody("ABC");
 
   producer.start();
 
   auto transaction = producer.prepare(message);
-
 
   transaction->commit();
 
