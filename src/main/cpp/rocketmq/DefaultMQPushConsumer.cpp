@@ -1,9 +1,5 @@
 #include <chrono>
 #include <memory>
-#include <set>
-
-#include "absl/container/flat_hash_set.h"
-#include "absl/strings/str_split.h"
 
 #include "DynamicNameServerResolver.h"
 #include "PushConsumerImpl.h"
@@ -12,25 +8,14 @@
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-static absl::flat_hash_set<std::string> consumer_table_;
-
-DefaultMQPushConsumer::DefaultMQPushConsumer(const std::string& group_name) : group_name_(group_name) {
-  if (consumer_table_.contains(group_name)) {
-    SPDLOG_ERROR("Creating multiple consumers with the same group name within a process is not allowed, group-name={}",
-                 group_name);
-    std::string err_msg = "create consumer with same group name in a process, group name :" + group_name;
-    THROW_MQ_EXCEPTION(MQClientException, err_msg, -1);
-  } else {
-    impl_ = std::make_shared<PushConsumerImpl>(group_name);
-    consumer_table_.insert(group_name);
-  }
+DefaultMQPushConsumer::DefaultMQPushConsumer(const std::string& group_name) {
+  impl_ = std::make_shared<PushConsumerImpl>(group_name);
 }
 
 void DefaultMQPushConsumer::start() { impl_->start(); }
 
 void DefaultMQPushConsumer::shutdown() {
   impl_->shutdown();
-  consumer_table_.erase(group_name_);
   SPDLOG_DEBUG("PushConsumerImpl shared_ptr use_count={}", impl_.use_count());
 }
 
