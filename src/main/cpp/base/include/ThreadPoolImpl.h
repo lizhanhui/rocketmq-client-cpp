@@ -1,10 +1,5 @@
 #pragma once
 
-#include "ThreadPool.h"
-#include "absl/synchronization/mutex.h"
-#include "asio/io_context.hpp"
-#include "rocketmq/RocketMQ.h"
-#include "rocketmq/State.h"
 #include <atomic>
 #include <cstdint>
 #include <functional>
@@ -12,7 +7,12 @@
 #include <thread>
 #include <vector>
 
+#include "absl/synchronization/mutex.h"
 #include "asio.hpp"
+#include "asio/io_context.hpp"
+
+#include "ThreadPool.h"
+#include "rocketmq/State.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
 
