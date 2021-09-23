@@ -17,7 +17,7 @@ class ClientConfigImpl : virtual public ClientConfig {
 public:
   ClientConfigImpl();
 
-  explicit ClientConfigImpl(std::string group_name);
+  explicit ClientConfigImpl(absl::string_view group_name);
 
   ~ClientConfigImpl() override = default;
 

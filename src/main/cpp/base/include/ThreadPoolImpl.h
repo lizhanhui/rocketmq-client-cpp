@@ -18,7 +18,7 @@ ROCKETMQ_NAMESPACE_BEGIN
 
 class ThreadPoolImpl : public ThreadPool {
 public:
-  ThreadPoolImpl(std::uint16_t workers);
+  explicit ThreadPoolImpl(std::uint16_t workers);
 
   ~ThreadPoolImpl() override = default;
 
