@@ -92,6 +92,8 @@ public:
 
   void setMessageModel(MessageModel message_model);
 
+  std::string groupName() const;
+
 private:
   std::shared_ptr<PushConsumerImpl> impl_;
 };

@@ -80,4 +80,6 @@ void DefaultMQPushConsumer::setCredentialsProvider(CredentialsProviderPtr creden
 
 void DefaultMQPushConsumer::setMessageModel(MessageModel message_model) { impl_->setMessageModel(message_model); }
 
+std::string DefaultMQPushConsumer::groupName() const { return impl_->getGroupName(); }
+
 ROCKETMQ_NAMESPACE_END
