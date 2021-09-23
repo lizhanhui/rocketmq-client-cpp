@@ -18,7 +18,7 @@
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-class ClientImpl : virtual public Client, virtual public ClientConfigImpl {
+class ClientImpl : public ClientConfigImpl, virtual public Client {
 public:
   explicit ClientImpl(absl::string_view group_name);
 

@@ -15,8 +15,6 @@ ROCKETMQ_NAMESPACE_BEGIN
 
 class ClientConfigImpl : virtual public ClientConfig {
 public:
-  ClientConfigImpl();
-
   explicit ClientConfigImpl(absl::string_view group_name);
 
   ~ClientConfigImpl() override = default;
