@@ -100,12 +100,12 @@ TEST_F(PullConsumerImplTest, testQueuesFor) {
 class TestPullCallback : public PullCallback {
 public:
   TestPullCallback(bool& success, bool& failure) : success_(success), failure_(failure) {}
-  void onSuccess(const PullResult& pull_result) override {
+  void onSuccess(const PullResult& pull_result) noexcept override {
     success_ = true;
     failure_ = false;
   }
 
-  void onException(const MQException& e) override {
+  void onFailure(const std::error_code& e) noexcept override {
     failure_ = true;
     success_ = false;
   }

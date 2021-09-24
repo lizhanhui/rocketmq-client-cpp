@@ -2,8 +2,10 @@
 #include "ClientManagerFactory.h"
 #include "InvocationContext.h"
 #include "Signature.h"
-#include "rocketmq/MessageModel.h"
 #include "apache/rocketmq/v1/definition.pb.h"
+#include "rocketmq/ErrorCode.h"
+#include "rocketmq/MessageModel.h"
+#include <system_error>
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -119,28 +121,63 @@ void PullConsumerImpl::pull(const PullMessageQuery& query, PullCallback* cb) {
 
   auto callback = [this, target_host, cb](const InvocationContext<PullMessageResponse>* invocation_context) {
     if (!invocation_context || !invocation_context->status.ok()) {
-      MQClientException exception(fmt::format("Server[{}] is not reachable", target_host), -1, __FILE__, __LINE__);
-      cb->onException(exception);
+      std::error_code ec = ErrorCode::RequestTimeout;
+      cb->onFailure(ec);
       return;
     }
 
     auto response = invocation_context->response;
     auto biz_status = response.common().status();
-    if (google::rpc::Code::OK != biz_status.code()) {
-      MQClientException exception(response.common().status().message(), biz_status.code(), __FILE__, __LINE__);
-      cb->onException(exception);
-      return;
-    }
 
-    std::vector<MQMessageExt> messages;
-    for (const auto& item : response.messages()) {
-      MQMessageExt message_ext;
-      if (client_manager_->wrapMessage(item, message_ext)) {
-        messages.emplace_back(message_ext);
+    switch (biz_status.code()) {
+    case google::rpc::Code::OK: {
+      std::vector<MQMessageExt> messages;
+      for (const auto& item : response.messages()) {
+        MQMessageExt message_ext;
+        if (client_manager_->wrapMessage(item, message_ext)) {
+          messages.emplace_back(message_ext);
+        }
       }
+      PullResult pull_result(response.min_offset(), response.max_offset(), response.next_offset(), std::move(messages));
+      cb->onSuccess(pull_result);
+    } break;
+
+    case google::rpc::Code::PERMISSION_DENIED: {
+      SPDLOG_WARN("PermissionDenied: {}", response.common().status().message());
+      std::error_code ec = ErrorCode::Forbidden;
+      cb->onFailure(ec);
+    } break;
+
+    case google::rpc::Code::UNAUTHENTICATED: {
+      SPDLOG_WARN("Unauthenticated: {}", response.common().status().message());
+      std::error_code ec = ErrorCode::Unauthorized;
+      cb->onFailure(ec);
+    } break;
+
+    case google::rpc::Code::DEADLINE_EXCEEDED: {
+      SPDLOG_WARN("GatewayTimeout: {}", response.common().status().message());
+      std::error_code ec = ErrorCode::GatewayTimeout;
+      cb->onFailure(ec);
+    } break;
+
+    case google::rpc::Code::INVALID_ARGUMENT: {
+      SPDLOG_WARN("BadRequest: {}", response.common().status().message());
+      std::error_code ec = ErrorCode::BadRequest;
+      cb->onFailure(ec);
+    } break;
+
+    case google::rpc::Code::INTERNAL: {
+      SPDLOG_WARN("ServerIntervalError: {}", response.common().status().message());
+      std::error_code ec = ErrorCode::InternalServerError;
+      cb->onFailure(ec);
+    } break;
+
+    default: {
+      SPDLOG_WARN("Unsupported response code. Please upgrade to lastest SDK");
+      std::error_code ec = ErrorCode::NotImplemented;
+      cb->onFailure(ec);
+    } break;
     }
-    PullResult pull_result(response.min_offset(), response.max_offset(), response.next_offset(), std::move(messages));
-    cb->onSuccess(pull_result);
   };
 
   absl::flat_hash_map<std::string, std::string> metadata;
