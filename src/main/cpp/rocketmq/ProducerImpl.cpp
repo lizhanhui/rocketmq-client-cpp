@@ -144,7 +144,8 @@ SendResult ProducerImpl::send(const MQMessage& message) {
   if (callback) {
     return callback.sendResult();
   }
-  THROW_MQ_EXCEPTION(MQClientException, callback.errorMessage(), FAILED_TO_SEND_MESSAGE);
+  ec = callback.errorCode();
+  THROW_MQ_EXCEPTION(MQClientException, ec.message(), ec.value());
 }
 
 SendResult ProducerImpl::send(const MQMessage& message, std::error_code& error_code) noexcept {
@@ -176,7 +177,7 @@ SendResult ProducerImpl::send(const MQMessage& message, std::error_code& error_c
     return callback.sendResult();
   }
 
-  error_code = ErrorCode::RequestTimeout;
+  error_code = callback.errorCode();
   return SendResult();
 }
 
@@ -199,7 +200,8 @@ SendResult ProducerImpl::send(const MQMessage& message, const MQMessageQueue& me
   if (callback) {
     return callback.sendResult();
   }
-  THROW_MQ_EXCEPTION(MQClientException, callback.errorMessage(), FAILED_TO_SEND_MESSAGE);
+  ec = callback.errorCode();
+  THROW_MQ_EXCEPTION(MQClientException, ec.message(), ec.value());
 }
 
 SendResult ProducerImpl::send(const MQMessage& message, MessageQueueSelector* selector, void* arg) {
@@ -220,7 +222,8 @@ SendResult ProducerImpl::send(const MQMessage& message, MessageQueueSelector* se
   if (callback) {
     return callback.sendResult();
   }
-  THROW_MQ_EXCEPTION(MQClientException, callback.errorMessage(), FAILED_TO_SEND_MESSAGE);
+  ec = callback.errorCode();
+  THROW_MQ_EXCEPTION(MQClientException, ec.message(), ec.value());
 }
 
 SendResult ProducerImpl::send(const MQMessage& message, MessageQueueSelector* selector, void* arg, int max_attempts) {
@@ -240,7 +243,8 @@ SendResult ProducerImpl::send(const MQMessage& message, MessageQueueSelector* se
   if (callback) {
     return callback.sendResult();
   }
-  THROW_MQ_EXCEPTION(MQClientException, callback.errorMessage(), FAILED_TO_SEND_MESSAGE);
+  ec = callback.errorCode();
+  THROW_MQ_EXCEPTION(MQClientException, ec.message(), ec.value());
 }
 
 void ProducerImpl::send(const MQMessage& message, SendCallback* cb) {
@@ -253,8 +257,8 @@ void ProducerImpl::send(const MQMessage& message, SendCallback* cb) {
 
   auto callback = [this, message, cb](const TopicPublishInfoPtr& publish_info) {
     if (!publish_info) {
-      MQClientException e("Failed to acquire topic route data", NO_TOPIC_ROUTE_INFO, __FILE__, __LINE__);
-      cb->onException(e);
+      std::error_code ec = ErrorCode::NotFound;
+      cb->onFailure(ec);
       return;
     }
 
@@ -285,8 +289,8 @@ void ProducerImpl::send(const MQMessage& message, MessageQueueSelector* selector
 
   auto cb = [this, message, selector, callback, arg](const TopicPublishInfoPtr& ptr) {
     if (!ptr) {
-      MQClientException e("Failed to acquire topic route", NO_TOPIC_ROUTE_INFO, __FILE__, __LINE__);
-      callback->onException(e);
+      std::error_code ec = ErrorCode::NotFound;
+      callback->onFailure(ec);
       return;
     }
 
@@ -360,9 +364,8 @@ void ProducerImpl::sendImpl(RetrySendCallback* callback) {
   const std::string& target = callback->messageQueue().serviceAddress();
   if (target.empty()) {
     SPDLOG_WARN("Failed to resolve broker address from MessageQueue");
-    MQClientException e("Failed to resolve broker address", FAILED_TO_RESOLVE_BROKER_ADDRESS_FROM_TOPIC_ROUTE, __FILE__,
-                        __LINE__);
-    callback->onException(e);
+    std::error_code ec = ErrorCode::BadGateway;
+    callback->onFailure(ec);
     return;
   }
 
@@ -414,20 +417,20 @@ void ProducerImpl::send0(const MQMessage& message, SendCallback* callback, std::
   assert(callback);
 
   if (!validate(message)) {
-    MQClientException e("Message is illegal", MESSAGE_ILLEGAL, __FILE__, __LINE__);
-    callback->onException(e);
+    std::error_code ec = ErrorCode::BadRequest;
+    callback->onFailure(ec);
     return;
   }
 
   if (list.empty()) {
-    MQClientException e("Topic route not found", NO_TOPIC_ROUTE_INFO, __FILE__, __LINE__);
-    callback->onException(e);
+    std::error_code ec = ErrorCode::NotFound;
+    callback->onFailure(ec);
     return;
   }
 
   if (max_attempt_times <= 0) {
-    MQClientException e("Retry times illegal", ERR_INVALID_MAX_ATTEMPT_TIME, __FILE__, __LINE__);
-    callback->onException(e);
+    std::error_code ec = ErrorCode::BadConfiguration;
+    callback->onFailure(ec);
     return;
   }
   MQMessageQueue message_queue = list[0];

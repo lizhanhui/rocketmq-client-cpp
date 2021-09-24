@@ -10,6 +10,7 @@
 #include "TopAddressing.h"
 #include "TopicRouteData.h"
 #include "rocketmq/MQMessageExt.h"
+#include "rocketmq/State.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -87,6 +88,8 @@ public:
   virtual bool notifyClientTermination(const std::string& target_host, const Metadata& metadata,
                                        const NotifyClientTerminationRequest& request,
                                        std::chrono::milliseconds timeout) = 0;
+
+  virtual State state() const = 0;
 };
 
 using ClientManagerPtr = std::shared_ptr<ClientManager>;

@@ -6,6 +6,7 @@
 #include "rocketmq/MQSelector.h"
 #include <memory>
 #include <mutex>
+#include <system_error>
 #include <utility>
 
 ROCKETMQ_NAMESPACE_BEGIN
@@ -111,13 +112,15 @@ class UnitTestSendCallback : public SendCallback {
 public:
   UnitTestSendCallback(absl::Mutex& mtx, absl::CondVar& cv, std::string& msg_id, bool& completed)
       : mtx_(mtx), cv_(cv), msg_id_(msg_id), completed_(completed) {}
-  void onSuccess(SendResult& send_result) override {
+  
+  void onSuccess(SendResult& send_result) noexcept override {
     absl::MutexLock lk(&mtx_);
     msg_id_ = send_result.getMsgId();
     completed_ = true;
     cv_.SignalAll();
   }
-  void onException(const MQException& e) override {
+  
+  void onFailure(const std::error_code& e) noexcept override {
     absl::MutexLock lk(&mtx_);
     completed_ = true;
     cv_.SignalAll();
@@ -136,7 +139,7 @@ TEST_F(DefaultMQProducerUnitTest, testAsyncSendMessage) {
   producer->withNameServerResolver(name_server_resolver_);
   producer->setCredentialsProvider(credentials_provider_);
   producer->start();
-  
+
   MQMessage message;
   message.setTopic(topic_);
   message.setBody(body_);

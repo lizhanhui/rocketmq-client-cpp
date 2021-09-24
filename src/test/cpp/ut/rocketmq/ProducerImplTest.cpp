@@ -1,4 +1,5 @@
 #include <memory>
+#include <system_error>
 
 #include "ClientManagerFactory.h"
 #include "ClientManagerMock.h"
@@ -187,12 +188,13 @@ TEST_F(ProducerImplTest, testSend_WithMessageQueueSelector) {
 class TestSendCallback : public SendCallback {
 public:
   TestSendCallback(bool& completed, absl::Mutex& mtx, absl::CondVar& cv) : completed_(completed), mtx_(mtx), cv_(cv) {}
-  void onSuccess(SendResult& send_result) override {
+  void onSuccess(SendResult& send_result) noexcept override {
     absl::MutexLock lk(&mtx_);
     completed_ = true;
     cv_.SignalAll();
   }
-  void onException(const MQException& e) override {
+  
+  void onFailure(const std::error_code& ec) noexcept override {
     absl::MutexLock lk(&mtx_);
     completed_ = true;
     cv_.SignalAll();

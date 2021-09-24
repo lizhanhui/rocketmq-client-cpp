@@ -90,6 +90,8 @@ public:
   MOCK_METHOD(bool, notifyClientTermination,
               (const std::string&, const Metadata&, const NotifyClientTerminationRequest&, std::chrono::milliseconds),
               (override));
+
+  MOCK_METHOD(State, state, (), (const override));
 };
 
 ROCKETMQ_NAMESPACE_END

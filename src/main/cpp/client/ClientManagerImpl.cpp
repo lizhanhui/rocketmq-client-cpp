@@ -16,9 +16,11 @@
 #include "grpcpp/create_channel.h"
 #include "rocketmq/ErrorCode.h"
 #include "rocketmq/MQMessageExt.h"
+#include <atomic>
 #include <chrono>
 #include <google/rpc/code.pb.h>
 #include <memory>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -328,41 +330,57 @@ bool ClientManagerImpl::send(const std::string& target_host, const Metadata& met
   }
 
   const std::string& topic = request.message().topic().name();
-  auto completion_callback = [topic, cb, this](const InvocationContext<SendMessageResponse>* invocation_context) {
-    if (invocation_context->status.ok() &&
-        google::rpc::Code::OK == invocation_context->response.common().status().code()) {
-      SendResult send_result;
-      send_result.setSendStatus(SendStatus::SEND_OK);
-      send_result.setMsgId(invocation_context->response.message_id());
-      send_result.setTransactionId(invocation_context->response.transaction_id());
-      if (State::STARTED == state_.load(std::memory_order_relaxed)) {
+  std::weak_ptr<ClientManager> client_manager(shared_from_this());
+  auto completion_callback = [topic, cb,
+                              client_manager](const InvocationContext<SendMessageResponse>* invocation_context) {
+    ClientManagerPtr client_manager_ptr = client_manager.lock();
+    if (!client_manager_ptr) {
+      return;
+    }
+
+    if (State::STARTED != client_manager_ptr->state()) {
+      // TODO: Would this leak some memroy?
+      return;
+    }
+
+    if (invocation_context->status.ok()) {
+      switch (invocation_context->response.common().status().code()) {
+      case google::rpc::Code::OK: {
+        SendResult send_result;
+        send_result.setSendStatus(SendStatus::SEND_OK);
+        send_result.setMsgId(invocation_context->response.message_id());
+        send_result.setTransactionId(invocation_context->response.transaction_id());
         cb->onSuccess(send_result);
-      } else {
-        SPDLOG_INFO("Client instance has stopped, state={}. Message[MessageId={}] ignored",
-                    state_.load(std::memory_order_relaxed), send_result.getMsgId());
+      } break;
+
+      case google::rpc::Code::INVALID_ARGUMENT: {
+        std::error_code ec = ErrorCode::BadRequest;
+        cb->onFailure(ec);
+      } break;
+      case google::rpc::Code::UNAUTHENTICATED: {
+        std::error_code ec = ErrorCode::Unauthorized;
+        cb->onFailure(ec);
+      } break;
+      case google::rpc::Code::PERMISSION_DENIED: {
+        std::error_code ec = ErrorCode::Forbidden;
+        cb->onFailure(ec);
+      } break;
+      case google::rpc::Code::INTERNAL: {
+        std::error_code ec = ErrorCode::InternalServerError;
+        cb->onFailure(ec);
+      } break;
+      default: {
+        std::error_code ec = ErrorCode::NotImplemented;
+        cb->onFailure(ec);
+        SPDLOG_WARN("Unsupported status code. Check and upgrade SDK to the latest");
+      } break;
       }
     } else {
-      if (!invocation_context->status.ok()) {
-        SPDLOG_WARN("Failed to send message to {} due to gRPC error. gRPC code: {}, gRPC error message: {}",
-                    invocation_context->remote_address, invocation_context->status.error_code(),
-                    invocation_context->status.error_message());
-      }
-      std::string msg;
-      msg.append("gRPC code: ")
-          .append(std::to_string(invocation_context->status.error_code()))
-          .append(", gRPC message: ")
-          .append(invocation_context->status.error_message())
-          .append(", code: ")
-          .append(std::to_string(invocation_context->response.common().status().code()))
-          .append(", remark: ")
-          .append(invocation_context->response.common().DebugString());
-      MQException e(msg, FAILED_TO_SEND_MESSAGE, __FILE__, __LINE__);
-      if (State::STARTED == state_.load(std::memory_order_relaxed)) {
-        cb->onException(e);
-      } else {
-        SPDLOG_WARN("Client instance has stopped, state={}. Ignore exception raised while sending message: {}",
-                    state_.load(std::memory_order_relaxed), e.what());
-      }
+      SPDLOG_WARN("Failed to send message to {} due to gRPC error. gRPC code: {}, gRPC error message: {}",
+                  invocation_context->remote_address, invocation_context->status.error_code(),
+                  invocation_context->status.error_message());
+      std::error_code ec = ErrorCode::RequestTimeout;
+      cb->onFailure(ec);
     }
   };
 
@@ -694,6 +712,8 @@ void ClientManagerImpl::processPullResult(const grpc::ClientContext& client_cont
     break;
   }
 }
+
+State ClientManagerImpl::state() const { return state_.load(std::memory_order_relaxed); }
 
 bool ClientManagerImpl::wrapMessage(const rmq::Message& item, MQMessageExt& message_ext) {
   assert(item.topic().resource_namespace() == resource_namespace_);

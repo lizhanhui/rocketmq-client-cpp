@@ -190,6 +190,8 @@ public:
   void processPullResult(const grpc::ClientContext& client_context, const PullMessageResponse& response,
                          ReceiveMessageResult& result, const std::string& target_host) override;
 
+  State state() const override;
+
 private:
   void processPopResult(const grpc::ClientContext& client_context, const ReceiveMessageResponse& response,
                         ReceiveMessageResult& result, const std::string& target_host);
