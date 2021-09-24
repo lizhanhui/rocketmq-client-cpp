@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <memory>
+#include <system_error>
 
 #include "absl/strings/str_split.h"
 
@@ -50,8 +51,10 @@ void DefaultMQProducer::enableTracing(bool enabled) { impl_->enableTracing(enabl
 
 bool DefaultMQProducer::isTracingEnabled() { return impl_->isTracingEnabled(); }
 
-SendResult DefaultMQProducer::send(const rocketmq::MQMessage& message, bool filter_active_broker) {
-  return impl_->send(message);
+SendResult DefaultMQProducer::send(const MQMessage& message, bool filter_active_broker) { return impl_->send(message); }
+
+SendResult DefaultMQProducer::send(const MQMessage& message, std::error_code& ec) noexcept {
+  return impl_->send(message, ec);
 }
 
 SendResult DefaultMQProducer::send(const MQMessage& msg, const MQMessageQueue& mq) { return impl_->send(msg, mq); }

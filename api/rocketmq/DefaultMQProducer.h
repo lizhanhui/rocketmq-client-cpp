@@ -2,10 +2,12 @@
 
 #include <chrono>
 #include <memory>
+#include <system_error>
 #include <vector>
 
 #include "AsyncCallback.h"
 #include "CredentialsProvider.h"
+#include "ErrorCode.h"
 #include "LocalTransactionStateChecker.h"
 #include "Logger.h"
 #include "MQMessage.h"
@@ -49,7 +51,10 @@ public:
    * @param message  Message to send.
    * @param filter_active_broker Do NOT rely on this parameter. it has been deprecated.
    */
-  SendResult send(const MQMessage& message, bool filter_active_broker = false);
+  SendResult send(const MQMessage& message, bool filter_active_broker = true);
+
+  SendResult send(const MQMessage& message, std::error_code& ec) noexcept;
+
   SendResult send(const MQMessage& message, const MQMessageQueue& message_queue);
   SendResult send(const MQMessage& message, MessageQueueSelector* selector, void* arg);
 

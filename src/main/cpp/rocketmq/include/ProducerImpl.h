@@ -4,6 +4,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <system_error>
 
 #include "absl/strings/string_view.h"
 
@@ -36,6 +37,9 @@ public:
   void shutdown() override;
 
   SendResult send(const MQMessage& message);
+
+  SendResult send(const MQMessage& message, std::error_code& ec) noexcept;
+
   SendResult send(const MQMessage& message, const std::string& message_group);
   SendResult send(const MQMessage& message, const MQMessageQueue& message_queue);
   SendResult send(const MQMessage& message, MessageQueueSelector* selector, void* arg);
@@ -128,7 +132,7 @@ private:
 
   bool isRunning() const;
 
-  void ensureRunning() const;
+  void ensureRunning(std::error_code& ec) const noexcept;
 
   bool validate(const MQMessage& message);
 

@@ -1,6 +1,7 @@
 #include "ProducerImpl.h"
 
 #include <atomic>
+#include <system_error>
 
 #include "absl/strings/str_join.h"
 #include "opencensus/trace/propagation/trace_context.h"
@@ -55,9 +56,9 @@ void ProducerImpl::shutdown() {
 
 bool ProducerImpl::isRunning() const { return State::STARTED == state_.load(std::memory_order_relaxed); }
 
-void ProducerImpl::ensureRunning() const {
+void ProducerImpl::ensureRunning(std::error_code& ec) const noexcept {
   if (!isRunning()) {
-    THROW_MQ_EXCEPTION(MQClientException, "Invoke #start() first", ILLEGAL_STATE);
+    ec = ErrorCode::IllegalState;
   }
 }
 
@@ -119,7 +120,12 @@ std::string ProducerImpl::wrapSendMessageRequest(const MQMessage& message, SendM
 }
 
 SendResult ProducerImpl::send(const MQMessage& message) {
-  ensureRunning();
+  std::error_code ec;
+  ensureRunning(ec);
+  if (ec) {
+    THROW_MQ_EXCEPTION(MQClientException, ec.message(), ec.value());
+  }
+
   auto topic_publish_info = getPublishInfo(message.getTopic());
   if (!topic_publish_info) {
     THROW_MQ_EXCEPTION(MQClientException, "No topic route available", NO_TOPIC_ROUTE_INFO);
@@ -141,13 +147,51 @@ SendResult ProducerImpl::send(const MQMessage& message) {
   THROW_MQ_EXCEPTION(MQClientException, callback.errorMessage(), FAILED_TO_SEND_MESSAGE);
 }
 
+SendResult ProducerImpl::send(const MQMessage& message, std::error_code& error_code) noexcept {
+  std::error_code ec;
+  ensureRunning(ec);
+  if (ec) {
+    error_code = ec;
+    return SendResult();
+  }
+
+  auto topic_publish_info = getPublishInfo(message.getTopic());
+  if (!topic_publish_info) {
+    error_code = ErrorCode::NotFound;
+    return SendResult();
+  }
+
+  std::vector<MQMessageQueue> message_queue_list;
+  takeMessageQueuesRoundRobin(topic_publish_info, message_queue_list, max_attempt_times_);
+  if (message_queue_list.empty()) {
+    error_code = ErrorCode::ServiceUnavailable;
+    return SendResult();
+  }
+
+  AwaitSendCallback callback;
+  send0(message, &callback, message_queue_list, max_attempt_times_);
+  callback.await();
+
+  if (callback) {
+    return callback.sendResult();
+  }
+
+  error_code = ErrorCode::RequestTimeout;
+  return SendResult();
+}
+
 SendResult ProducerImpl::send(const MQMessage& message, const std::string& message_group) {
   MessageGroupQueueSelector selector(message_group);
   return send(message, &selector, nullptr);
 }
 
 SendResult ProducerImpl::send(const MQMessage& message, const MQMessageQueue& message_queue) {
-  ensureRunning();
+  std::error_code ec;
+  ensureRunning(ec);
+  if (ec) {
+    THROW_MQ_EXCEPTION(MQClientException, ec.message(), ec.value());
+  }
+
   std::vector<MQMessageQueue> message_queue_list{withServiceAddress(message_queue)};
   AwaitSendCallback callback;
   send0(message, &callback, message_queue_list, max_attempt_times_);
@@ -159,7 +203,12 @@ SendResult ProducerImpl::send(const MQMessage& message, const MQMessageQueue& me
 }
 
 SendResult ProducerImpl::send(const MQMessage& message, MessageQueueSelector* selector, void* arg) {
-  ensureRunning();
+  std::error_code ec;
+  ensureRunning(ec);
+  if (ec) {
+    THROW_MQ_EXCEPTION(MQClientException, ec.message(), ec.value());
+  }
+
   std::vector<MQMessageQueue> message_queue_list;
   executeMessageQueueSelector(message, selector, arg, message_queue_list);
   if (message_queue_list.empty()) {
@@ -175,7 +224,11 @@ SendResult ProducerImpl::send(const MQMessage& message, MessageQueueSelector* se
 }
 
 SendResult ProducerImpl::send(const MQMessage& message, MessageQueueSelector* selector, void* arg, int max_attempts) {
-  ensureRunning();
+  std::error_code ec;
+  ensureRunning(ec);
+  if (ec) {
+    THROW_MQ_EXCEPTION(MQClientException, ec.message(), ec.value());
+  }
   std::vector<MQMessageQueue> message_queue_list;
   executeMessageQueueSelector(message, selector, arg, message_queue_list);
   if (message_queue_list.empty()) {
@@ -191,7 +244,13 @@ SendResult ProducerImpl::send(const MQMessage& message, MessageQueueSelector* se
 }
 
 void ProducerImpl::send(const MQMessage& message, SendCallback* cb) {
-  ensureRunning();
+
+  std::error_code ec;
+  ensureRunning(ec);
+  if (ec) {
+    THROW_MQ_EXCEPTION(MQClientException, ec.message(), ec.value());
+  }
+
   auto callback = [this, message, cb](const TopicPublishInfoPtr& publish_info) {
     if (!publish_info) {
       MQClientException e("Failed to acquire topic route data", NO_TOPIC_ROUTE_INFO, __FILE__, __LINE__);
@@ -208,13 +267,21 @@ void ProducerImpl::send(const MQMessage& message, SendCallback* cb) {
 }
 
 void ProducerImpl::send(const MQMessage& message, const MQMessageQueue& message_queue, SendCallback* callback) {
-  ensureRunning();
+  std::error_code ec;
+  ensureRunning(ec);
+  if (ec) {
+    THROW_MQ_EXCEPTION(MQClientException, ec.message(), ec.value());
+  }
   std::vector<MQMessageQueue> message_queue_list{withServiceAddress(message_queue)};
   send0(message, callback, message_queue_list, max_attempt_times_);
 }
 
 void ProducerImpl::send(const MQMessage& message, MessageQueueSelector* selector, void* arg, SendCallback* callback) {
-  ensureRunning();
+  std::error_code ec;
+  ensureRunning(ec);
+  if (ec) {
+    THROW_MQ_EXCEPTION(MQClientException, ec.message(), ec.value());
+  }
 
   auto cb = [this, message, selector, callback, arg](const TopicPublishInfoPtr& ptr) {
     if (!ptr) {
@@ -233,7 +300,12 @@ void ProducerImpl::send(const MQMessage& message, MessageQueueSelector* selector
 }
 
 void ProducerImpl::sendOneway(const MQMessage& message) {
-  ensureRunning();
+  std::error_code ec;
+  ensureRunning(ec);
+  if (ec) {
+    THROW_MQ_EXCEPTION(MQClientException, ec.message(), ec.value());
+  }
+
   auto callback = [this, message](const TopicPublishInfoPtr& ptr) {
     if (!ptr) {
       SPDLOG_WARN("Failed acquire topic publish info for {}", message.getTopic());
@@ -250,13 +322,22 @@ void ProducerImpl::sendOneway(const MQMessage& message) {
 }
 
 void ProducerImpl::sendOneway(const MQMessage& message, const MQMessageQueue& message_queue) {
-  ensureRunning();
+  std::error_code ec;
+  ensureRunning(ec);
+  if (ec) {
+    THROW_MQ_EXCEPTION(MQClientException, ec.message(), ec.value());
+  }
+
   std::vector<MQMessageQueue> list{withServiceAddress(message_queue)};
   send0(message, onewaySendCallback(), list, 1);
 }
 
 void ProducerImpl::sendOneway(const MQMessage& message, MessageQueueSelector* selector, void* arg) {
-  ensureRunning();
+  std::error_code ec;
+  ensureRunning(ec);
+  if (ec) {
+    THROW_MQ_EXCEPTION(MQClientException, ec.message(), ec.value());
+  }
 
   auto callback = [this, message, selector, arg](const TopicPublishInfoPtr& ptr) {
     if (!ptr) {
