@@ -33,7 +33,8 @@ public:
       LOCKS_EXCLUDED(inflight_route_requests_mtx_, topic_route_table_mtx_);
 
   /**
-   * Gather collection of endpoints that are reachable from latest topic route table.
+   * Gather collection of endpoints that are reachable from latest topic route
+   * table.
    *
    * @param endpoints
    */
@@ -46,7 +47,9 @@ public:
     return State::STARTING == state || State::STARTED == state;
   }
 
-  void healthCheck() LOCKS_EXCLUDED(isolated_endpoints_mtx_) override;
+  void onRemoteEndpointRemoval(const std::vector<std::string>& hosts) override LOCKS_EXCLUDED(isolated_endpoints_mtx_);
+
+  void healthCheck() override LOCKS_EXCLUDED(isolated_endpoints_mtx_);
 
   void schedule(const std::string& task_name, const std::function<void(void)>& task,
                 std::chrono::milliseconds delay) override;
@@ -92,7 +95,8 @@ protected:
   virtual void resolveOrphanedTransactionalMessage(const std::string& transaction_id, const MQMessageExt& message) {}
 
   /**
-   * Concrete publisher/subscriber client is expected to fill other type-specific resources.
+   * Concrete publisher/subscriber client is expected to fill other
+   * type-specific resources.
    */
   virtual ClientResourceBundle resourceBundle() {
     ClientResourceBundle resource_bundle;
@@ -107,8 +111,9 @@ protected:
 
 private:
   /**
-   * This is a low-level API that fetches route data from name server through gRPC unary request/response. Once
-   * request/response is completed, either timeout or response arrival in time, callback would get invoked.
+   * This is a low-level API that fetches route data from name server through
+   * gRPC unary request/response. Once request/response is completed, either
+   * timeout or response arrival in time, callback would get invoked.
    * @param topic
    * @param cb
    */
@@ -124,8 +129,8 @@ private:
       LOCKS_EXCLUDED(inflight_route_requests_mtx_);
 
   /**
-   * Update local cache for the topic. Note, route differences are logged in INFO level since route bears fundamental
-   * importance.
+   * Update local cache for the topic. Note, route differences are logged in
+   * INFO level since route bears fundamental importance.
    *
    * @param topic
    * @param route

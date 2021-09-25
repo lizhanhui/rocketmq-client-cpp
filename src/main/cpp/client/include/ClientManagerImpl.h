@@ -75,7 +75,7 @@ public:
    * If inactive RPC clients refer to remote hosts that are absent from topic_route_table_, we need to purge them
    * immediately.
    */
-  void cleanOfflineRpcClients() LOCKS_EXCLUDED(clients_mtx_, rpc_clients_mtx_);
+  std::vector<std::string> cleanOfflineRpcClients() LOCKS_EXCLUDED(clients_mtx_, rpc_clients_mtx_);
 
   /**
    * Execute health-check on behalf of the client.

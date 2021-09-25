@@ -389,6 +389,18 @@ void ClientImpl::onMultiplexingResponse(const InvocationContext<MultiplexingResp
   }
 }
 
+void ClientImpl::onRemoteEndpointRemoval(const std::vector<std::string>& hosts) {
+  absl::MutexLock lk(&isolated_endpoints_mtx_);
+  for (auto it = isolated_endpoints_.begin(); it != isolated_endpoints_.end();) {
+    if (hosts.end() != std::find_if(hosts.begin(), hosts.end(), [&](const std::string& item) { return *it == item; })) {
+      SPDLOG_INFO("Drop isolated-endoint[{}] as it has been removed from route table", *it);
+      isolated_endpoints_.erase(it++);
+    } else {
+      it++;
+    }
+  }
+}
+
 void ClientImpl::healthCheck() {
   std::vector<std::string> endpoints;
   {

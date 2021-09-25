@@ -224,7 +224,7 @@ void ClientManagerImpl::doHealthCheck() {
     return;
   }
 
-  cleanOfflineRpcClients();
+  auto&& rpc_clients_removed = cleanOfflineRpcClients();
 
   std::vector<std::shared_ptr<Client>> clients;
   {
@@ -237,13 +237,19 @@ void ClientManagerImpl::doHealthCheck() {
     }
   }
 
+  if (!rpc_clients_removed.empty()) {
+    for (auto& client : clients) {
+      client->onRemoteEndpointRemoval(rpc_clients_removed);
+    }
+  }
+
   for (auto& client : clients) {
     client->healthCheck();
   }
   SPDLOG_DEBUG("Health check completed");
 }
 
-void ClientManagerImpl::cleanOfflineRpcClients() {
+std::vector<std::string> ClientManagerImpl::cleanOfflineRpcClients() {
   absl::flat_hash_set<std::string> hosts;
   {
     absl::MutexLock lk(&clients_mtx_);
@@ -256,18 +262,22 @@ void ClientManagerImpl::cleanOfflineRpcClients() {
     }
   }
 
+  std::vector<std::string> removed;
   {
     absl::MutexLock lk(&rpc_clients_mtx_);
     for (auto it = rpc_clients_.begin(); it != rpc_clients_.end();) {
       std::string host = it->first;
       if (it->second->needHeartbeat() && !hosts.contains(host)) {
         SPDLOG_INFO("Removed RPC client whose peer is offline. RemoteHost={}", host);
+        removed.push_back(host);
         rpc_clients_.erase(it++);
       } else {
         it++;
       }
     }
   }
+
+  return removed;
 }
 
 void ClientManagerImpl::heartbeat(const std::string& target_host, const Metadata& metadata,
@@ -1191,7 +1201,7 @@ void ClientManagerImpl::endTransaction(
     }
     cb(ec, invocation_context->response);
   };
-  
+
   invocation_context->callback = callback;
   client->asyncEndTransaction(request, invocation_context);
 }
