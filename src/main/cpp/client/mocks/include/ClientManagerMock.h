@@ -62,7 +62,7 @@ public:
 
   MOCK_METHOD(void, healthCheck,
               (const std::string&, const Metadata&, const HealthCheckRequest&, std::chrono::milliseconds,
-               (const std::function<void(const std::string&, const InvocationContext<HealthCheckResponse>*)>&)),
+               (const std::function<void(const std::error_code&, const InvocationContext<HealthCheckResponse>*)>&)),
               (override));
 
   MOCK_METHOD(void, addClientObserver, (std::weak_ptr<Client>), (override));

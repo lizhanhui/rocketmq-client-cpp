@@ -343,8 +343,9 @@ TEST_F(ClientManagerTest, testHealthCheck) {
       .WillRepeatedly(testing::Invoke(mock_health_check));
   HealthCheckRequest request;
   bool callback_invoked = false;
-  auto callback = [&](const std::string& target_host,
-                      const InvocationContext<HealthCheckResponse>* invocation_context) { callback_invoked = true; };
+  auto callback = [&](const std::error_code& ec, const InvocationContext<HealthCheckResponse>* invocation_context) {
+    callback_invoked = true;
+  };
 
   client_manager_->healthCheck(target_host_, metadata_, request, absl::ToChronoMilliseconds(io_timeout_), callback);
   {

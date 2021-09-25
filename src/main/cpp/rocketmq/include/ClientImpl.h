@@ -137,7 +137,7 @@ private:
 
   void onMultiplexingResponse(const InvocationContext<MultiplexingResponse>* ctx);
 
-  void onHealthCheckResponse(const std::string& endpoint, const InvocationContext<HealthCheckResponse>* ctx)
+  void onHealthCheckResponse(const std::error_code& endpoint, const InvocationContext<HealthCheckResponse>* ctx)
       LOCKS_EXCLUDED(isolated_endpoints_mtx_);
 
   void fillGenericPollingRequest(MultiplexingRequest& request);

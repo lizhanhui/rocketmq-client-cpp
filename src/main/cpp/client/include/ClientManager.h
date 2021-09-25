@@ -65,7 +65,7 @@ public:
   virtual void
   healthCheck(const std::string& target_host, const Metadata& metadata, const HealthCheckRequest& request,
               std::chrono::milliseconds timeout,
-              const std::function<void(const std::string&, const InvocationContext<HealthCheckResponse>*)>& cb) = 0;
+              const std::function<void(const std::error_code&, const InvocationContext<HealthCheckResponse>*)>& cb) = 0;
 
   virtual void addClientObserver(std::weak_ptr<Client> client) = 0;
 

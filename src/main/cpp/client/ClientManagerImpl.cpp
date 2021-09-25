@@ -159,18 +159,14 @@ void ClientManagerImpl::assignLabels(Histogram& histogram) {
 void ClientManagerImpl::healthCheck(
     const std::string& target_host, const Metadata& metadata, const HealthCheckRequest& request,
     std::chrono::milliseconds timeout,
-    const std::function<void(const std::string&, const InvocationContext<HealthCheckResponse>*)>& cb) {
-  {
-    absl::MutexLock lk(&rpc_clients_mtx_);
-    if (!rpc_clients_.contains(target_host)) {
-      SPDLOG_WARN("Try to perform health check for {}, which is unknown to client manager", target_host);
-      cb(target_host, nullptr);
-      return;
-    }
-  }
-
+    const std::function<void(const std::error_code&, const InvocationContext<HealthCheckResponse>*)>& cb) {
+  std::error_code ec;
   auto client = getRpcClient(target_host);
-  assert(client);
+  if (!client) {
+    ec = ErrorCode::RequestTimeout;
+    cb(ec, nullptr);
+    return;
+  }
 
   auto invocation_context = new InvocationContext<HealthCheckResponse>();
   invocation_context->remote_address = target_host;
@@ -180,7 +176,41 @@ void ClientManagerImpl::healthCheck(
     invocation_context->context.AddMetadata(entry.first, entry.second);
   }
 
-  auto callback = [cb](const InvocationContext<HealthCheckResponse>* ctx) { cb(ctx->remote_address, ctx); };
+  auto callback = [cb](const InvocationContext<HealthCheckResponse>* ctx) {
+    std::error_code ec;
+    if (!ctx->status.ok()) {
+      ec = ErrorCode::RequestTimeout;
+      cb(ec, ctx);
+      return;
+    }
+
+    const auto& common = ctx->response.common();
+    switch (common.status().code()) {
+    case google::rpc::Code::OK: {
+      cb(ec, ctx);
+    } break;
+    case google::rpc::Code::UNAUTHENTICATED: {
+      SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+      ec = ErrorCode::Unauthorized;
+      cb(ec, ctx);
+    } break;
+    case google::rpc::Code::PERMISSION_DENIED: {
+      SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+      ec = ErrorCode::Forbidden;
+      cb(ec, ctx);
+    } break;
+    case google::rpc::Code::INTERNAL: {
+      SPDLOG_WARN("InternalServerError: {}", common.status().message());
+      ec = ErrorCode::InternalServerError;
+      cb(ec, ctx);
+    } break;
+    default: {
+      SPDLOG_WARN("NotImplemented: please upgrade SDK to latest release");
+      ec = ErrorCode::NotImplemented;
+      cb(ec, ctx);
+    } break;
+    }
+  };
 
   invocation_context->callback = callback;
   client->asyncHealthCheck(request, invocation_context);

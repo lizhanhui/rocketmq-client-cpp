@@ -399,14 +399,14 @@ void ClientImpl::healthCheck() {
   }
 
   std::weak_ptr<ClientImpl> base(self());
-  auto callback = [base](const std::string& endpoint,
-                         const InvocationContext<HealthCheckResponse>* invocation_context) {
+  auto callback = [base](const std::error_code& ec, const InvocationContext<HealthCheckResponse>* invocation_context) {
     std::shared_ptr<ClientImpl> ptr = base.lock();
-    if (ptr) {
-      ptr->onHealthCheckResponse(endpoint, invocation_context);
-    } else {
+    if (!ptr) {
       SPDLOG_INFO("BaseImpl has been destructed");
+      return;
     }
+
+    ptr->onHealthCheckResponse(ec, invocation_context);
   };
 
   for (const auto& endpoint : endpoints) {
@@ -422,31 +422,16 @@ void ClientImpl::schedule(const std::string& task_name, const std::function<void
   client_manager_->getScheduler().schedule(task, task_name, delay, std::chrono::milliseconds(0));
 }
 
-void ClientImpl::onHealthCheckResponse(const std::string& endpoint, const InvocationContext<HealthCheckResponse>* ctx) {
-  if (!ctx) {
-    SPDLOG_WARN("ClientInstance does not have RPC client for {}. It might have been offline and thus cleaned",
-                endpoint);
-    {
-      absl::MutexLock lk(&isolated_endpoints_mtx_);
-      isolated_endpoints_.erase(endpoint);
-    }
+void ClientImpl::onHealthCheckResponse(const std::error_code& ec, const InvocationContext<HealthCheckResponse>* ctx) {
+  if (ec) {
+    SPDLOG_INFO("Health check to server[host={}] failed. Cause: {}", ec.message());
     return;
   }
 
-  assert(endpoint == ctx->remote_address);
-
-  if (ctx->status.ok()) {
-    if (google::rpc::Code::OK == ctx->response.common().status().code()) {
-      SPDLOG_INFO("Health check to server[host={}] passed. Move it back to active node pool", endpoint);
-      absl::MutexLock lk(&isolated_endpoints_mtx_);
-      isolated_endpoints_.erase(endpoint);
-    } else {
-      SPDLOG_INFO("Health check to server[host={}] failed due to application layer reason: {}",
-                  ctx->response.common().DebugString());
-    }
-  } else {
-    SPDLOG_INFO("Health check to server[host={}] failed due to transport layer reason: {}", endpoint,
-                ctx->status.error_message());
+  {
+    SPDLOG_INFO("Health check to server[host={}] passed. Move it back to active node pool", ctx->remote_address);
+    absl::MutexLock lk(&isolated_endpoints_mtx_);
+    isolated_endpoints_.erase(ctx->remote_address);
   }
 }
 

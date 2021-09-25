@@ -83,7 +83,7 @@ public:
   void
   healthCheck(const std::string& target_host, const Metadata& metadata, const HealthCheckRequest& request,
               std::chrono::milliseconds timeout,
-              const std::function<void(const std::string&, const InvocationContext<HealthCheckResponse>*)>& cb) override
+              const std::function<void(const std::error_code&, const InvocationContext<HealthCheckResponse>*)>& cb) override
       LOCKS_EXCLUDED(rpc_clients_mtx_);
 
   bool send(const std::string& target_host, const Metadata& metadata, SendMessageRequest& request,
