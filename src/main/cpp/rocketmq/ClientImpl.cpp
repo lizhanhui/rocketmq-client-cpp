@@ -241,9 +241,9 @@ void ClientImpl::heartbeat() {
   Signature::sign(this, metadata);
 
   for (const auto& target : hosts) {
-    auto callback = [target](bool ok, const HeartbeatResponse& response) {
-      if (!ok) {
-        SPDLOG_WARN("Failed to send heartbeat request to {}", target);
+    auto callback = [target](const std::error_code& ec, const HeartbeatResponse& response) {
+      if (ec) {
+        SPDLOG_WARN("Failed to heartbeat against {}. Cause: {}", target, ec.message());
         return;
       }
       SPDLOG_DEBUG("Heartbeat to {} OK", target);

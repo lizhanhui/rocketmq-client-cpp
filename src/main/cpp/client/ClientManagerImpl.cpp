@@ -242,7 +242,7 @@ void ClientManagerImpl::cleanOfflineRpcClients() {
 
 void ClientManagerImpl::heartbeat(const std::string& target_host, const Metadata& metadata,
                                   const HeartbeatRequest& request, std::chrono::milliseconds timeout,
-                                  const std::function<void(bool, const HeartbeatResponse&)>& cb) {
+                                  const std::function<void(const std::error_code&, const HeartbeatResponse&)>& cb) {
   auto client = getRpcClient(target_host, true);
   if (!client) {
     return;
@@ -255,22 +255,47 @@ void ClientManagerImpl::heartbeat(const std::string& target_host, const Metadata
   }
 
   auto callback = [cb](const InvocationContext<HeartbeatResponse>* invocation_context) {
-    if (invocation_context->status.ok()) {
-      if (google::rpc::Code::OK == invocation_context->response.common().status().code()) {
-        SPDLOG_DEBUG("Send heartbeat to target_host={}, gRPC status OK", invocation_context->remote_address);
-        cb(true, invocation_context->response);
-      } else {
-        SPDLOG_WARN("Server[{}] failed to process heartbeat. Reason: {}", invocation_context->remote_address,
-                    invocation_context->response.common().DebugString());
-        cb(false, invocation_context->response);
-      }
-    } else {
-      SPDLOG_WARN("Failed to send heartbeat to target_host={}. GRPC code: {}, message : {}",
+    if (!invocation_context->status.ok()) {
+      SPDLOG_WARN("Failed to send heartbeat to target_host={}. gRPC code: {}, message: {}",
                   invocation_context->remote_address, invocation_context->status.error_code(),
                   invocation_context->status.error_message());
-      cb(false, invocation_context->response);
+      std::error_code ec = ErrorCode::RequestTimeout;
+      cb(ec, invocation_context->response);
+      return;
+    }
+
+    const auto& common = invocation_context->response.common();
+    std::error_code ec;
+    switch (common.status().code()) {
+    case google::rpc::Code::OK: {
+      cb(ec, invocation_context->response);
+    } break;
+    case google::rpc::Code::UNAUTHENTICATED: {
+      SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+      ec = ErrorCode::Unauthorized;
+      cb(ec, invocation_context->response);
+    } break;
+    case google::rpc::Code::PERMISSION_DENIED: {
+      SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+      ec = ErrorCode::Forbidden;
+      cb(ec, invocation_context->response);
+    } break;
+    case google::rpc::Code::INVALID_ARGUMENT: {
+      SPDLOG_WARN("InvalidArgument: {}", common.status().message());
+      ec = ErrorCode::BadRequest;
+      cb(ec, invocation_context->response);
+    } break;
+    case google::rpc::Code::INTERNAL: {
+      SPDLOG_WARN("InternalServerError: {}", common.status().message());
+      ec = ErrorCode::InternalServerError;
+      cb(ec, invocation_context->response);
+    } break;
+    default: {
+      SPDLOG_WARN("NotImplemented: Please upgrade SDK to latest release");
+    } break;
     }
   };
+
   invocation_context->callback = callback;
   invocation_context->context.set_deadline(std::chrono::system_clock::now() + timeout);
   client->asyncHeartbeat(request, invocation_context);

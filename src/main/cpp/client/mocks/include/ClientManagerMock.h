@@ -24,7 +24,7 @@ public:
 
   MOCK_METHOD(void, heartbeat,
               (const std::string&, const Metadata&, const HeartbeatRequest&, std::chrono::milliseconds,
-               (const std::function<void(bool, const HeartbeatResponse&)>&)),
+               (const std::function<void(const std::error_code&, const HeartbeatResponse&)>&)),
               (override));
 
   MOCK_METHOD(void, multiplexingCall,

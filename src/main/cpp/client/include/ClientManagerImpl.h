@@ -186,7 +186,7 @@ public:
 
   void heartbeat(const std::string& target_host, const Metadata& metadata, const HeartbeatRequest& request,
                  std::chrono::milliseconds timeout,
-                 const std::function<void(bool, const HeartbeatResponse&)>& cb) override;
+                 const std::function<void(const std::error_code&, const HeartbeatResponse&)>& cb) override;
 
   void processPullResult(const grpc::ClientContext& client_context, const PullMessageResponse& response,
                          ReceiveMessageResult& result, const std::string& target_host) override;
