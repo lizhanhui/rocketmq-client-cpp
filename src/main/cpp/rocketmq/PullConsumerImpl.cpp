@@ -45,8 +45,8 @@ std::future<std::vector<MQMessageQueue>> PullConsumerImpl::queuesFor(const std::
       return promise->get_future();
     }
   }
-  auto callback = [promise](const TopicRouteDataPtr& route) {
-    if (route) {
+  auto callback = [promise](const std::error_code& ec, const TopicRouteDataPtr& route) {
+    if (ec) {
       std::vector<MQMessageQueue> message_queues;
       for (const auto& partition : route->partitions()) {
         message_queues.emplace_back(partition.asMessageQueue());

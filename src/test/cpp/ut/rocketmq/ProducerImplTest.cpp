@@ -81,11 +81,13 @@ TEST_F(ProducerImplTest, testSend) {
   SchedulerImpl scheduler;
   scheduler.start();
   ON_CALL(*client_manager_, getScheduler).WillByDefault(testing::ReturnRef(scheduler));
-  auto mock_resolve_route = [this](const std::string& target_host, const Metadata& metadata,
-                                   const QueryRouteRequest& request, std::chrono::milliseconds timeout,
-                                   const std::function<void(bool, const TopicRouteDataPtr& ptr)>& cb) {
-    cb(true, topic_route_data_);
-  };
+  auto mock_resolve_route =
+      [this](const std::string& target_host, const Metadata& metadata, const QueryRouteRequest& request,
+             std::chrono::milliseconds timeout,
+             const std::function<void(const std::error_code& ec, const TopicRouteDataPtr& ptr)>& cb) {
+        std::error_code ec;
+        cb(ec, topic_route_data_);
+      };
 
   EXPECT_CALL(*client_manager_, resolveRoute)
       .Times(testing::AtLeast(1))
@@ -116,11 +118,13 @@ TEST_F(ProducerImplTest, testSend_WithMessageGroup) {
   SchedulerImpl scheduler;
   scheduler.start();
   ON_CALL(*client_manager_, getScheduler).WillByDefault(testing::ReturnRef(scheduler));
-  auto mock_resolve_route = [this](const std::string& target_host, const Metadata& metadata,
-                                   const QueryRouteRequest& request, std::chrono::milliseconds timeout,
-                                   const std::function<void(bool, const TopicRouteDataPtr& ptr)>& cb) {
-    cb(true, topic_route_data_);
-  };
+  auto mock_resolve_route =
+      [this](const std::string& target_host, const Metadata& metadata, const QueryRouteRequest& request,
+             std::chrono::milliseconds timeout,
+             const std::function<void(const std::error_code& ec, const TopicRouteDataPtr& ptr)>& cb) {
+        std::error_code ec;
+        cb(ec, topic_route_data_);
+      };
 
   EXPECT_CALL(*client_manager_, resolveRoute)
       .Times(testing::AtLeast(1))
@@ -152,11 +156,13 @@ TEST_F(ProducerImplTest, testSend_WithMessageQueueSelector) {
   SchedulerImpl scheduler;
   scheduler.start();
   ON_CALL(*client_manager_, getScheduler).WillByDefault(testing::ReturnRef(scheduler));
-  auto mock_resolve_route = [this](const std::string& target_host, const Metadata& metadata,
-                                   const QueryRouteRequest& request, std::chrono::milliseconds timeout,
-                                   const std::function<void(bool, const TopicRouteDataPtr& ptr)>& cb) {
-    cb(true, topic_route_data_);
-  };
+  auto mock_resolve_route =
+      [this](const std::string& target_host, const Metadata& metadata, const QueryRouteRequest& request,
+             std::chrono::milliseconds timeout,
+             const std::function<void(const std::error_code& ec, const TopicRouteDataPtr& ptr)>& cb) {
+        std::error_code ec;
+        cb(ec, topic_route_data_);
+      };
 
   EXPECT_CALL(*client_manager_, resolveRoute)
       .Times(testing::AtLeast(1))
@@ -215,11 +221,13 @@ TEST_F(ProducerImplTest, testAsyncSend) {
   SchedulerImpl scheduler;
   scheduler.start();
   ON_CALL(*client_manager_, getScheduler).WillByDefault(testing::ReturnRef(scheduler));
-  auto mock_resolve_route = [this](const std::string& target_host, const Metadata& metadata,
-                                   const QueryRouteRequest& request, std::chrono::milliseconds timeout,
-                                   const std::function<void(bool, const TopicRouteDataPtr& ptr)>& cb) {
-    cb(true, topic_route_data_);
-  };
+  auto mock_resolve_route =
+      [this](const std::string& target_host, const Metadata& metadata, const QueryRouteRequest& request,
+             std::chrono::milliseconds timeout,
+             const std::function<void(const std::error_code& ec, const TopicRouteDataPtr& ptr)>& cb) {
+        std::error_code ec;
+        cb(ec, topic_route_data_);
+      };
 
   EXPECT_CALL(*client_manager_, resolveRoute)
       .Times(testing::AtLeast(1))

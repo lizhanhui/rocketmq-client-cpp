@@ -186,9 +186,8 @@ void ProducerImpl::send(const MQMessage& message, SendCallback* cb) {
     cb->onFailure(ec);
   }
 
-  auto callback = [this, message, cb](const TopicPublishInfoPtr& publish_info) {
-    if (!publish_info) {
-      std::error_code ec = ErrorCode::NotFound;
+  auto callback = [this, message, cb](const std::error_code& ec, const TopicPublishInfoPtr& publish_info) {
+    if (ec) {
       cb->onFailure(ec);
       return;
     }
@@ -212,6 +211,7 @@ void ProducerImpl::send(const MQMessage& message, SendCallback* cb) {
     } else {
       takeMessageQueuesRoundRobin(publish_info, message_queue_list, max_attempt_times_);
     }
+    
     if (message_queue_list.empty()) {
       std::error_code ec = ErrorCode::ServiceUnavailable;
       cb->onFailure(ec);
@@ -466,7 +466,7 @@ bool ProducerImpl::rollback(const std::string& message_id, const std::string& tr
 }
 
 void ProducerImpl::asyncPublishInfo(const std::string& topic,
-                                    const std::function<void(const TopicPublishInfoPtr&)>& cb) {
+                                    const std::function<void(const std::error_code&, const TopicPublishInfoPtr&)>& cb) {
   TopicPublishInfoPtr ptr;
   {
     absl::MutexLock lock(&topic_publish_info_mtx_);
@@ -474,12 +474,13 @@ void ProducerImpl::asyncPublishInfo(const std::string& topic,
       ptr = topic_publish_info_table_.at(topic);
     }
   }
+  std::error_code ec;
   if (ptr) {
-    cb(ptr);
+    cb(ec, ptr);
   } else {
-    auto callback = [this, topic, cb](const TopicRouteDataPtr& route) {
-      if (!route) {
-        cb(nullptr);
+    auto callback = [this, topic, cb](const std::error_code& ec, const TopicRouteDataPtr& route) {
+      if (ec) {
+        cb(ec, nullptr);
         return;
       }
 
@@ -488,8 +489,9 @@ void ProducerImpl::asyncPublishInfo(const std::string& topic,
         absl::MutexLock lk(&topic_publish_info_mtx_);
         topic_publish_info_table_.insert_or_assign(topic, publish_info);
       }
-      cb(publish_info);
+      cb(ec, publish_info);
     };
+
     getRouteFor(topic, callback);
   }
 }
@@ -499,9 +501,11 @@ TopicPublishInfoPtr ProducerImpl::getPublishInfo(const std::string& topic) {
   absl::Mutex mtx;
   absl::CondVar cv;
   TopicPublishInfoPtr topic_publish_info;
-  auto cb = [&](const TopicPublishInfoPtr& ptr) {
+  std::error_code error_code;
+  auto cb = [&](const std::error_code& ec, const TopicPublishInfoPtr& ptr) {
     absl::MutexLock lk(&mtx);
     topic_publish_info = ptr;
+    error_code = ec;
     complete = true;
     cv.SignalAll();
   };
@@ -512,6 +516,8 @@ TopicPublishInfoPtr ProducerImpl::getPublishInfo(const std::string& topic) {
     absl::MutexLock lk(&mtx);
     cv.Wait(&mtx);
   }
+
+  // TODO: propogate error_code to caller
   return topic_publish_info;
 }
 
@@ -528,12 +534,14 @@ std::vector<MQMessageQueue> ProducerImpl::listMessageQueue(const std::string& to
   absl::CondVar cv;
   bool completed = false;
   TopicPublishInfoPtr ptr;
-  auto await_callback = [&](const TopicPublishInfoPtr& publish_info) {
+  auto await_callback = [&](const std::error_code& error_code, const TopicPublishInfoPtr& publish_info) {
     absl::MutexLock lk(&mtx);
     ptr = publish_info;
+    ec = error_code;
     completed = true;
     cv.SignalAll();
   };
+
   asyncPublishInfo(topic, await_callback);
 
   while (!completed) {
@@ -541,8 +549,7 @@ std::vector<MQMessageQueue> ProducerImpl::listMessageQueue(const std::string& to
     cv.Wait(&mtx);
   }
 
-  if (!ptr) {
-    ec = ErrorCode::NotFound;
+  if (ec) {
     return {};
   }
 

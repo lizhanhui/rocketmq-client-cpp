@@ -65,7 +65,7 @@ public:
    */
   void resolveRoute(const std::string& target_host, const Metadata& metadata, const QueryRouteRequest& request,
                     std::chrono::milliseconds timeout,
-                    const std::function<void(bool, const TopicRouteDataPtr& ptr)>& cb) override
+                    const std::function<void(const std::error_code&, const TopicRouteDataPtr&)>& cb) override
       LOCKS_EXCLUDED(rpc_clients_mtx_);
 
   void doHealthCheck() LOCKS_EXCLUDED(clients_mtx_);

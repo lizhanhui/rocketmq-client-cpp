@@ -1,5 +1,14 @@
 #include "ClientManagerImpl.h"
 
+#include <atomic>
+#include <chrono>
+#include <memory>
+#include <system_error>
+#include <utility>
+#include <vector>
+
+#include "google/rpc/code.pb.h"
+
 #include "InvocationContext.h"
 #include "LogInterceptor.h"
 #include "LogInterceptorFactory.h"
@@ -16,13 +25,6 @@
 #include "grpcpp/create_channel.h"
 #include "rocketmq/ErrorCode.h"
 #include "rocketmq/MQMessageExt.h"
-#include <atomic>
-#include <chrono>
-#include <google/rpc/code.pb.h>
-#include <memory>
-#include <system_error>
-#include <utility>
-#include <vector>
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -298,7 +300,6 @@ void ClientManagerImpl::doHeartbeat() {
 }
 
 void ClientManagerImpl::pollCompletionQueue() {
-
   while (State::STARTED == state_.load(std::memory_order_relaxed) ||
          State::STARTING == state_.load(std::memory_order_relaxed)) {
     bool ok = false;
@@ -465,12 +466,13 @@ void ClientManagerImpl::addClientObserver(std::weak_ptr<Client> client) {
 
 void ClientManagerImpl::resolveRoute(const std::string& target_host, const Metadata& metadata,
                                      const QueryRouteRequest& request, std::chrono::milliseconds timeout,
-                                     const std::function<void(bool, const TopicRouteDataPtr&)>& cb) {
+                                     const std::function<void(const std::error_code&, const TopicRouteDataPtr&)>& cb) {
 
   RpcClientSharedPtr client = getRpcClient(target_host, false);
   if (!client) {
     SPDLOG_WARN("Failed to create RPC client for name server[host={}]", target_host);
-    cb(false, nullptr);
+    std::error_code ec = ErrorCode::RequestTimeout;
+    cb(ec, nullptr);
     return;
   }
 
@@ -485,68 +487,96 @@ void ClientManagerImpl::resolveRoute(const std::string& target_host, const Metad
     if (!invocation_context->status.ok()) {
       SPDLOG_WARN("Failed to send query route request to server[host={}]. Reason: {}",
                   invocation_context->remote_address, invocation_context->status.error_message());
-      cb(false, nullptr);
+      std::error_code ec = ErrorCode::RequestTimeout;
+      cb(ec, nullptr);
       return;
     }
 
-    if (google::rpc::Code::OK != invocation_context->response.common().status().code()) {
-      SPDLOG_WARN("Server[host={}] failed to process query route request. Reason: {}",
-                  invocation_context->remote_address, invocation_context->response.common().DebugString());
-      cb(false, nullptr);
-      return;
+    std::error_code ec;
+    const auto& common = invocation_context->response.common();
+    switch (common.status().code()) {
+    case google::rpc::Code::OK: {
+      auto& partitions = invocation_context->response.partitions();
+      std::vector<Partition> topic_partitions;
+      for (const auto& partition : partitions) {
+        Topic t(partition.topic().resource_namespace(), partition.topic().name());
+
+        auto& broker = partition.broker();
+        AddressScheme scheme = AddressScheme::IPv4;
+        switch (broker.endpoints().scheme()) {
+        case rmq::AddressScheme::IPv4:
+          scheme = AddressScheme::IPv4;
+          break;
+        case rmq::AddressScheme::IPv6:
+          scheme = AddressScheme::IPv6;
+          break;
+        case rmq::AddressScheme::DOMAIN_NAME:
+          scheme = AddressScheme::DOMAIN_NAME;
+          break;
+        default:
+          break;
+        }
+
+        std::vector<Address> addresses;
+        for (const auto& address : broker.endpoints().addresses()) {
+          addresses.emplace_back(Address{address.host(), address.port()});
+        }
+        ServiceAddress service_address(scheme, addresses);
+        Broker b(partition.broker().name(), partition.broker().id(), service_address);
+
+        Permission permission = Permission::READ_WRITE;
+        switch (partition.permission()) {
+        case rmq::Permission::READ:
+          permission = Permission::READ;
+          break;
+
+        case rmq::Permission::WRITE:
+          permission = Permission::WRITE;
+          break;
+        case rmq::Permission::READ_WRITE:
+          permission = Permission::READ_WRITE;
+          break;
+        default:
+          break;
+        }
+        Partition topic_partition(t, partition.id(), permission, std::move(b));
+        topic_partitions.emplace_back(std::move(topic_partition));
+      }
+      auto ptr =
+          std::make_shared<TopicRouteData>(std::move(topic_partitions), invocation_context->response.DebugString());
+      cb(ec, ptr);
+    } break;
+    case google::rpc::Code::UNAUTHENTICATED: {
+      SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+      ec = ErrorCode::Unauthorized;
+      cb(ec, nullptr);
+    } break;
+    case google::rpc::Code::PERMISSION_DENIED: {
+      SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+      ec = ErrorCode::Forbidden;
+      cb(ec, nullptr);
+    } break;
+    case google::rpc::Code::INVALID_ARGUMENT: {
+      SPDLOG_WARN("InvalidArgument: {}", common.status().message());
+      ec = ErrorCode::BadRequest;
+      cb(ec, nullptr);
+    } break;
+    case google::rpc::Code::NOT_FOUND: {
+      SPDLOG_WARN("NotFound: {}", common.status().message());
+      ec = ErrorCode::NotFound;
+      cb(ec, nullptr);
+    } break;
+    case google::rpc::Code::INTERNAL: {
+      SPDLOG_WARN("InternalServerError: {}", common.status().message());
+      ec = ErrorCode::InternalServerError;
+      cb(ec, nullptr);
+    } break;
+    default: {
+      SPDLOG_WARN("NotImplement: Please upgrade to latest SDK release");
+      ec = ErrorCode::NotImplemented;
+      cb(ec, nullptr);
+    } break;
     }
-
-    auto& partitions = invocation_context->response.partitions();
-
-    std::vector<Partition> topic_partitions;
-    for (const auto& partition : partitions) {
-      Topic t(partition.topic().resource_namespace(), partition.topic().name());
-
-      auto& broker = partition.broker();
-      AddressScheme scheme = AddressScheme::IPv4;
-      switch (broker.endpoints().scheme()) {
-      case rmq::AddressScheme::IPv4:
-        scheme = AddressScheme::IPv4;
-        break;
-      case rmq::AddressScheme::IPv6:
-        scheme = AddressScheme::IPv6;
-        break;
-      case rmq::AddressScheme::DOMAIN_NAME:
-        scheme = AddressScheme::DOMAIN_NAME;
-        break;
-      default:
-        break;
-      }
-
-      std::vector<Address> addresses;
-      for (const auto& address : broker.endpoints().addresses()) {
-        addresses.emplace_back(Address{address.host(), address.port()});
-      }
-      ServiceAddress service_address(scheme, addresses);
-      Broker b(partition.broker().name(), partition.broker().id(), service_address);
-
-      Permission permission = Permission::READ_WRITE;
-      switch (partition.permission()) {
-      case rmq::Permission::READ:
-        permission = Permission::READ;
-        break;
-
-      case rmq::Permission::WRITE:
-        permission = Permission::WRITE;
-        break;
-      case rmq::Permission::READ_WRITE:
-        permission = Permission::READ_WRITE;
-        break;
-      default:
-        break;
-      }
-      Partition topic_partition(t, partition.id(), permission, std::move(b));
-      topic_partitions.emplace_back(std::move(topic_partition));
-    }
-
-    auto ptr =
-        std::make_shared<TopicRouteData>(std::move(topic_partitions), invocation_context->response.DebugString());
-    cb(true, ptr);
   };
   invocation_context->callback = callback;
   client->asyncQueryRoute(request, invocation_context);

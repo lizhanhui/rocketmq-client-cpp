@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <system_error>
 
 #include "absl/strings/string_view.h"
 #include "apache/rocketmq/v1/definition.pb.h"
@@ -28,7 +29,7 @@ public:
 
   virtual void shutdown();
 
-  void getRouteFor(const std::string& topic, const std::function<void(TopicRouteDataPtr)>& cb)
+  void getRouteFor(const std::string& topic, const std::function<void(const std::error_code&, TopicRouteDataPtr)>& cb)
       LOCKS_EXCLUDED(inflight_route_requests_mtx_, topic_route_table_mtx_);
 
   /**
@@ -62,7 +63,7 @@ protected:
   absl::flat_hash_map<std::string, TopicRouteDataPtr> topic_route_table_ GUARDED_BY(topic_route_table_mtx_);
   absl::Mutex topic_route_table_mtx_ ACQUIRED_AFTER(inflight_route_requests_mtx_); // protects topic_route_table_
 
-  absl::flat_hash_map<std::string, std::vector<std::function<void(const TopicRouteDataPtr&)>>>
+  absl::flat_hash_map<std::string, std::vector<std::function<void(const std::error_code&, const TopicRouteDataPtr&)>>>
       inflight_route_requests_ GUARDED_BY(inflight_route_requests_mtx_);
   absl::Mutex inflight_route_requests_mtx_ ACQUIRED_BEFORE(topic_route_table_mtx_); // Protects inflight_route_requests_
   static const char* UPDATE_ROUTE_TASK_NAME;
@@ -111,14 +112,15 @@ private:
    * @param topic
    * @param cb
    */
-  void fetchRouteFor(const std::string& topic, const std::function<void(const TopicRouteDataPtr&)>& cb);
+  void fetchRouteFor(const std::string& topic,
+                     const std::function<void(const std::error_code&, const TopicRouteDataPtr&)>& cb);
 
   /**
    * Callback to execute once route data is fetched from name server.
    * @param topic
    * @param route
    */
-  void onTopicRouteReady(const std::string& topic, const TopicRouteDataPtr& route)
+  void onTopicRouteReady(const std::string& topic, const std::error_code& ec, const TopicRouteDataPtr& route)
       LOCKS_EXCLUDED(inflight_route_requests_mtx_);
 
   /**
@@ -128,7 +130,7 @@ private:
    * @param topic
    * @param route
    */
-  void updateRouteCache(const std::string& topic, const TopicRouteDataPtr& route)
+  void updateRouteCache(const std::string& topic, const std::error_code& ec, const TopicRouteDataPtr& route)
       LOCKS_EXCLUDED(topic_route_table_mtx_);
 
   void multiplexing(const std::string& target, const MultiplexingRequest& request);

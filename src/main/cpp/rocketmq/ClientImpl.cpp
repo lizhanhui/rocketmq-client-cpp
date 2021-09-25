@@ -2,9 +2,11 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <iterator>
 #include <memory>
 #include <string>
+#include <system_error>
 #include <utility>
 
 #include "absl/strings/str_join.h"
@@ -85,7 +87,8 @@ void ClientImpl::endpointsInUse(absl::flat_hash_set<std::string>& endpoints) {
   }
 }
 
-void ClientImpl::getRouteFor(const std::string& topic, const std::function<void(TopicRouteDataPtr)>& cb) {
+void ClientImpl::getRouteFor(const std::string& topic,
+                             const std::function<void(const std::error_code&, TopicRouteDataPtr)>& cb) {
   TopicRouteDataPtr route = nullptr;
   {
     absl::MutexLock lock(&topic_route_table_mtx_);
@@ -95,7 +98,8 @@ void ClientImpl::getRouteFor(const std::string& topic, const std::function<void(
   }
 
   if (route) {
-    cb(route);
+    std::error_code ec;
+    cb(ec, route);
     return;
   }
 
@@ -116,7 +120,7 @@ void ClientImpl::getRouteFor(const std::string& topic, const std::function<void(
         SPDLOG_DEBUG("Would reuse prior route request for topic={}", topic);
         return;
       } else {
-        std::vector<std::function<void(const TopicRouteDataPtr&)>> inflight{cb};
+        std::vector<std::function<void(const std::error_code&, const TopicRouteDataPtr&)>> inflight{cb};
         inflight_route_requests_.insert({topic, inflight});
         SPDLOG_INFO("Create inflight route query cache for topic={}", topic);
       }
@@ -124,9 +128,11 @@ void ClientImpl::getRouteFor(const std::string& topic, const std::function<void(
   }
 
   if (!query_backend && route) {
-    cb(route);
+    std::error_code ec;
+    cb(ec, route);
   } else {
-    fetchRouteFor(topic, std::bind(&ClientImpl::onTopicRouteReady, this, topic, std::placeholders::_1));
+    fetchRouteFor(topic,
+                  std::bind(&ClientImpl::onTopicRouteReady, this, topic, std::placeholders::_1, std::placeholders::_2));
   }
 }
 
@@ -163,26 +169,27 @@ void ClientImpl::setAccessPoint(rmq::Endpoints* endpoints) {
   }
 }
 
-void ClientImpl::fetchRouteFor(const std::string& topic, const std::function<void(const TopicRouteDataPtr&)>& cb) {
+void ClientImpl::fetchRouteFor(const std::string& topic,
+                               const std::function<void(const std::error_code&, const TopicRouteDataPtr&)>& cb) {
   std::string name_server = name_server_resolver_->current();
   if (name_server.empty()) {
     SPDLOG_WARN("No name server available");
     return;
   }
 
-  auto callback = [this, topic, name_server, cb](bool ok, const TopicRouteDataPtr& route) {
-    if (!ok || !route) {
+  auto callback = [this, topic, name_server, cb](const std::error_code& ec, const TopicRouteDataPtr& route) {
+    if (ec) {
       SPDLOG_WARN("Failed to resolve route for topic={} from {}", topic, name_server);
       std::string name_server_changed = name_server_resolver_->next();
       if (!name_server_changed.empty()) {
         SPDLOG_INFO("Change current name server from {} to {}", name_server, name_server_changed);
       }
-      cb(nullptr);
+      cb(ec, nullptr);
       return;
     }
 
     SPDLOG_DEBUG("Apply callback of fetchRouteFor({}) since a valid route is fetched", topic);
-    cb(route);
+    cb(ec, route);
   };
 
   QueryRouteRequest request;
@@ -212,7 +219,8 @@ void ClientImpl::updateRouteInfo() {
 
   if (!topics.empty()) {
     for (const auto& topic : topics) {
-      fetchRouteFor(topic, std::bind(&ClientImpl::updateRouteCache, this, topic, std::placeholders::_1));
+      fetchRouteFor(
+          topic, std::bind(&ClientImpl::updateRouteCache, this, topic, std::placeholders::_1, std::placeholders::_2));
     }
   }
 
@@ -249,15 +257,16 @@ void ClientImpl::heartbeat() {
   }
 }
 
-void ClientImpl::onTopicRouteReady(const std::string& topic, const TopicRouteDataPtr& route) {
+void ClientImpl::onTopicRouteReady(const std::string& topic, const std::error_code& ec,
+                                   const TopicRouteDataPtr& route) {
   if (route) {
     SPDLOG_DEBUG("Received route data for topic={}", topic);
   }
 
-  updateRouteCache(topic, route);
+  updateRouteCache(topic, ec, route);
 
   // Take all pending callbacks
-  std::vector<std::function<void(const TopicRouteDataPtr&)>> pending_requests;
+  std::vector<std::function<void(const std::error_code&, const TopicRouteDataPtr&)>> pending_requests;
   {
     absl::MutexLock lk(&inflight_route_requests_mtx_);
     assert(inflight_route_requests_.contains(topic));
@@ -268,13 +277,13 @@ void ClientImpl::onTopicRouteReady(const std::string& topic, const TopicRouteDat
 
   SPDLOG_DEBUG("Apply cached callbacks with acquired route data for topic={}", topic);
   for (const auto& cb : pending_requests) {
-    cb(route);
+    cb(ec, route);
   }
 }
 
-void ClientImpl::updateRouteCache(const std::string& topic, const TopicRouteDataPtr& route) {
-  if (!route || route->partitions().empty()) {
-    SPDLOG_WARN("Yuck! route for {} is invalid", topic);
+void ClientImpl::updateRouteCache(const std::string& topic, const std::error_code& ec, const TopicRouteDataPtr& route) {
+  if (ec || !route || route->partitions().empty()) {
+    SPDLOG_WARN("Yuck! route for {} is invalid. Cause: {}", topic, ec.message());
     return;
   }
 

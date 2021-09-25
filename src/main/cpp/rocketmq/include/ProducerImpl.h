@@ -104,7 +104,8 @@ private:
 
   LocalTransactionStateCheckerPtr transaction_state_checker_;
 
-  void asyncPublishInfo(const std::string& topic, const std::function<void(const TopicPublishInfoPtr&)>& cb)
+  void asyncPublishInfo(const std::string& topic,
+                        const std::function<void(const std::error_code&, const TopicPublishInfoPtr&)>& cb)
       LOCKS_EXCLUDED(topic_publish_info_mtx_);
 
   TopicPublishInfoPtr getPublishInfo(const std::string& topic);

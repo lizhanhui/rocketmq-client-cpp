@@ -18,7 +18,7 @@ public:
 
   MOCK_METHOD(void, resolveRoute,
               (const std::string&, const Metadata&, const QueryRouteRequest&, std::chrono::milliseconds,
-               (const std::function<void(bool, const TopicRouteDataPtr&)>&)),
+               (const std::function<void(const std::error_code&, const TopicRouteDataPtr&)>&)),
               (override));
 
   MOCK_METHOD(void, heartbeat,

@@ -4,6 +4,7 @@
 #include "apache/rocketmq/v1/definition.pb.h"
 #include "gtest/gtest.h"
 #include <memory>
+#include <system_error>
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -65,7 +66,7 @@ TEST_F(ClientManagerTest, testResolveRoute) {
   QueryRouteRequest request;
   request.mutable_topic()->set_resource_namespace(resource_namespace_);
   request.mutable_topic()->set_name(topic_);
-  auto callback = [&](bool, const TopicRouteDataPtr&) {
+  auto callback = [&](const std::error_code& ec, const TopicRouteDataPtr&) {
     absl::MutexLock lk(&mtx);
     completed = true;
     cv.SignalAll();

@@ -1,5 +1,12 @@
 #include "PushConsumerImpl.h"
 
+#include <cassert>
+#include <chrono>
+#include <cstdlib>
+#include <system_error>
+
+#include "apache/rocketmq/v1/definition.pb.h"
+
 #include "AsyncReceiveMessageCallback.h"
 #include "ClientManagerFactory.h"
 #include "MessageAccessor.h"
@@ -9,10 +16,6 @@
 #include "Signature.h"
 #include "rocketmq/MQClientException.h"
 #include "rocketmq/MessageModel.h"
-#include <apache/rocketmq/v1/definition.pb.h>
-#include <cassert>
-#include <chrono>
-#include <cstdlib>
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -196,11 +199,12 @@ void PushConsumerImpl::wrapQueryAssignmentRequest(const std::string& topic, cons
 void PushConsumerImpl::queryAssignment(const std::string& topic,
                                        const std::function<void(const TopicAssignmentPtr&)>& cb) {
 
-  auto callback = [this, topic, cb](const TopicRouteDataPtr& topic_route) {
+  auto callback = [this, topic, cb](const std::error_code& ec, const TopicRouteDataPtr& topic_route) {
     TopicAssignmentPtr topic_assignment;
     if (MessageModel::BROADCASTING == message_model_) {
-      if (!topic_route) {
+      if (ec) {
         SPDLOG_WARN("Failed to get valid route entries for topic={}", topic);
+        // TODO: Propogate error_code to callback.
         cb(topic_assignment);
       }
 
@@ -492,15 +496,6 @@ void PushConsumerImpl::setThrottle(const std::string& topic, uint32_t threshold)
   }
 }
 
-#ifdef ENABLE_TRACING
-nostd::shared_ptr<trace::Tracer> DefaultMQPushConsumerImpl::getTracer() {
-  if (nullptr == client_manager_) {
-    return nostd::shared_ptr<trace::Tracer>(nullptr);
-  }
-  return client_manager_->getTracer();
-}
-#endif
-
 void PushConsumerImpl::iterateProcessQueue(const std::function<void(ProcessQueueSharedPtr)>& callback) {
   absl::MutexLock lock(&process_queue_table_mtx_);
   for (const auto& item : process_queue_table_) {
@@ -527,11 +522,11 @@ void PushConsumerImpl::fetchRoutes() {
   absl::Mutex mtx;
   absl::CondVar cv;
   int acquired = 0;
-  auto callback = [&](const TopicRouteDataPtr& route) {
+  auto callback = [&](const std::error_code& ec, const TopicRouteDataPtr& route) {
     absl::MutexLock lk(&mtx);
     countdown--;
     cv.SignalAll();
-    if (route) {
+    if (!ec) {
       acquired++;
     }
   };

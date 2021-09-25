@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <memory>
+#include <system_error>
 
 #include "Client.h"
 #include "ReceiveMessageCallback.h"
@@ -30,7 +31,7 @@ public:
 
   virtual void resolveRoute(const std::string& target_host, const Metadata& metadata, const QueryRouteRequest& request,
                             std::chrono::milliseconds timeout,
-                            const std::function<void(bool, const TopicRouteDataPtr& ptr)>& cb) = 0;
+                            const std::function<void(const std::error_code&, const TopicRouteDataPtr& ptr)>& cb) = 0;
 
   virtual void heartbeat(const std::string& target_host, const Metadata& metadata, const HeartbeatRequest& request,
                          std::chrono::milliseconds timeout,
