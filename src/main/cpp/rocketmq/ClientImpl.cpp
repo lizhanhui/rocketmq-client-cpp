@@ -424,12 +424,12 @@ void ClientImpl::schedule(const std::string& task_name, const std::function<void
 
 void ClientImpl::onHealthCheckResponse(const std::error_code& ec, const InvocationContext<HealthCheckResponse>* ctx) {
   if (ec) {
-    SPDLOG_INFO("Health check to server[host={}] failed. Cause: {}", ec.message());
+    SPDLOG_WARN("Health check to server[host={}] failed. Cause: {}", ec.message());
     return;
   }
 
+  SPDLOG_INFO("Health check to server[host={}] passed. Remove it from isolated endpoint pool", ctx->remote_address);
   {
-    SPDLOG_INFO("Health check to server[host={}] passed. Move it back to active node pool", ctx->remote_address);
     absl::MutexLock lk(&isolated_endpoints_mtx_);
     isolated_endpoints_.erase(ctx->remote_address);
   }
