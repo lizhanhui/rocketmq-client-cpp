@@ -364,14 +364,15 @@ bool PushConsumerImpl::receiveMessage(const MQMessageQueue& message_queue, const
       request.set_policy(rmq::QueryOffsetPolicy::END);
       absl::flat_hash_map<std::string, std::string> metadata;
       Signature::sign(this, metadata);
-      auto callback = [broker_host, message_queue, process_queue_ptr](bool ok, const QueryOffsetResponse& response) {
-        if (ok) {
+      auto callback = [broker_host, message_queue, process_queue_ptr](const std::error_code& ec,
+                                                                      const QueryOffsetResponse& response) {
+        if (ec) {
+          SPDLOG_WARN("Failed to acquire latest offset for partition[{}] from server[host={}]. Cause: {}",
+                      message_queue.simpleName(), broker_host, ec.message());
+        } else {
           assert(response.offset() >= 0);
           process_queue_ptr->nextOffset(response.offset());
           process_queue_ptr->receiveMessage();
-        } else {
-          SPDLOG_WARN("Failed to acquire latest offset for partition[{}] from server[host={}]",
-                      message_queue.simpleName(), broker_host);
         }
       };
       client_manager_->queryOffset(broker_host, metadata, request, absl::ToChronoMilliseconds(io_timeout_), callback);

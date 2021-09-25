@@ -1213,10 +1213,14 @@ void ClientManagerImpl::multiplexingCall(
 
 void ClientManagerImpl::queryOffset(const std::string& target_host, const Metadata& metadata,
                                     const QueryOffsetRequest& request, std::chrono::milliseconds timeout,
-                                    const std::function<void(bool, const QueryOffsetResponse&)>& cb) {
+                                    const std::function<void(const std::error_code&, const QueryOffsetResponse&)>& cb) {
   auto client = getRpcClient(target_host);
+  std::error_code ec;
   if (!client) {
     SPDLOG_WARN("Failed to get/create RPC client for {}", target_host);
+    ec = ErrorCode::RequestTimeout;
+    QueryOffsetResponse response;
+    cb(ec, response);
     return;
   }
 
@@ -1224,21 +1228,41 @@ void ClientManagerImpl::queryOffset(const std::string& target_host, const Metada
   invocation_context->remote_address = target_host;
   invocation_context->context.set_deadline(std::chrono::system_clock::now() + timeout);
   auto callback = [cb](const InvocationContext<QueryOffsetResponse>* invocation_context) {
+    std::error_code ec;
+
     if (!invocation_context->status.ok()) {
-      SPDLOG_WARN("Failed to send query offset request to {}. Reason: {}", invocation_context->remote_address,
-                  invocation_context->status.error_message());
-      cb(false, invocation_context->response);
+      ec = ErrorCode::RequestTimeout;
+      cb(ec, invocation_context->response);
       return;
     }
 
-    if (google::rpc::Code::OK != invocation_context->response.common().status().code()) {
-      SPDLOG_WARN("Server[host={}] failed to process query offset request. Reason: {}",
-                  invocation_context->remote_address, invocation_context->response.common().DebugString());
-      cb(false, invocation_context->response);
+    const auto& common = invocation_context->response.common();
+    switch (common.status().code()) {
+    case google::rpc::Code::OK: {
+      SPDLOG_DEBUG("Query offset from server[host={}] OK", invocation_context->remote_address);
+      cb(ec, invocation_context->response);
+    } break;
+    case google::rpc::Code::UNAUTHENTICATED: {
+      SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+      ec = ErrorCode::Unauthorized;
+      cb(ec, invocation_context->response);
+    } break;
+    case google::rpc::Code::PERMISSION_DENIED: {
+      SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+      ec = ErrorCode::Forbidden;
+      cb(ec, invocation_context->response);
+    } break;
+    case google::rpc::Code::INTERNAL: {
+      SPDLOG_WARN("InternalServerError: {}", common.status().message());
+      ec = ErrorCode::InternalServerError;
+      cb(ec, invocation_context->response);
+    } break;
+    default: {
+      SPDLOG_WARN("NotImplemented: please upgrade SDK to the latest release");
+      ec = ErrorCode::NotImplemented;
+      cb(ec, invocation_context->response);
     }
-
-    SPDLOG_DEBUG("Query offset from server[host={}] OK", invocation_context->remote_address);
-    cb(true, invocation_context->response);
+    }
   };
   invocation_context->callback = callback;
   client->asyncQueryOffset(request, invocation_context);

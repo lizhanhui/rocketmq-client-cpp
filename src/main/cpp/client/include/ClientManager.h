@@ -60,7 +60,7 @@ public:
 
   virtual void queryOffset(const std::string& target_host, const Metadata& metadata, const QueryOffsetRequest& request,
                            std::chrono::milliseconds timeout,
-                           const std::function<void(bool, const QueryOffsetResponse&)>& cb) = 0;
+                           const std::function<void(const std::error_code&, const QueryOffsetResponse&)>& cb) = 0;
 
   virtual void
   healthCheck(const std::string& target_host, const Metadata& metadata, const HealthCheckRequest& request,

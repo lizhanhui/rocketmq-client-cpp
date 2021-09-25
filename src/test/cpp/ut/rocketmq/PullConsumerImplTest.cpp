@@ -300,7 +300,10 @@ TEST_F(PullConsumerImplTest, testQueryOffset) {
 
   auto mock_query_offset = [&](const std::string& target_host, const Metadata& metadata,
                                const QueryOffsetRequest& request, std::chrono::milliseconds timeout,
-                               const std::function<void(bool, const QueryOffsetResponse&)>& cb) { cb(true, response); };
+                               const std::function<void(const std::error_code&, const QueryOffsetResponse&)>& cb) {
+    std::error_code ec;
+    cb(ec, response);
+  };
 
   EXPECT_CALL(*client_manager_, queryOffset)
       .Times(testing::AtLeast(1))
@@ -340,7 +343,10 @@ TEST_F(PullConsumerImplTest, testQueryOffset_End) {
 
   auto mock_query_offset = [&](const std::string& target_host, const Metadata& metadata,
                                const QueryOffsetRequest& request, std::chrono::milliseconds timeout,
-                               const std::function<void(bool, const QueryOffsetResponse&)>& cb) { cb(true, response); };
+                               const std::function<void(const std::error_code&, const QueryOffsetResponse&)>& cb) {
+    std::error_code ec;
+    cb(ec, response);
+  };
 
   EXPECT_CALL(*client_manager_, queryOffset)
       .Times(testing::AtLeast(1))
@@ -380,7 +386,10 @@ TEST_F(PullConsumerImplTest, testQueryOffset_Timepoint) {
 
   auto mock_query_offset = [&](const std::string& target_host, const Metadata& metadata,
                                const QueryOffsetRequest& request, std::chrono::milliseconds timeout,
-                               const std::function<void(bool, const QueryOffsetResponse&)>& cb) { cb(true, response); };
+                               const std::function<void(const std::error_code&, const QueryOffsetResponse&)>& cb) {
+    std::error_code ec;
+    cb(ec, response);
+  };
 
   EXPECT_CALL(*client_manager_, queryOffset)
       .Times(testing::AtLeast(1))

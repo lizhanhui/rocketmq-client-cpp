@@ -57,7 +57,7 @@ public:
 
   MOCK_METHOD(void, queryOffset,
               (const std::string&, const Metadata&, const QueryOffsetRequest&, std::chrono::milliseconds,
-               (const std::function<void(bool, const QueryOffsetResponse&)>&)),
+               (const std::function<void(const std::error_code&, const QueryOffsetResponse&)>&)),
               (override));
 
   MOCK_METHOD(void, healthCheck,

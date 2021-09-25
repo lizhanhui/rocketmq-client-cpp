@@ -87,13 +87,13 @@ std::future<int64_t> PullConsumerImpl::queryOffset(const OffsetQuery& query) {
 
   // TODO: Use std::unique_ptr if C++14 is adopted.
   auto promise_ptr = std::make_shared<std::promise<int64_t>>();
-  auto callback = [promise_ptr](bool ok, const QueryOffsetResponse& response) {
-    if (ok) {
-      promise_ptr->set_value(response.offset());
+  auto callback = [promise_ptr](const std::error_code& ec, const QueryOffsetResponse& response) {
+    if (ec) {
+      MQClientException e(ec.message(), ec.value(), __FILE__, __LINE__);
+      promise_ptr->set_exception(std::make_exception_ptr(e));
       return;
     }
-    MQClientException e("Failed to query offset", -1, __FILE__, __LINE__);
-    promise_ptr->set_exception(std::make_exception_ptr(e));
+    promise_ptr->set_value(response.offset());
   };
 
   client_manager_->queryOffset(query.message_queue.serviceAddress(), metadata, request,

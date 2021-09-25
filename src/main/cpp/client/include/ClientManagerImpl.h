@@ -80,11 +80,10 @@ public:
   /**
    * Execute health-check on behalf of the client.
    */
-  void
-  healthCheck(const std::string& target_host, const Metadata& metadata, const HealthCheckRequest& request,
-              std::chrono::milliseconds timeout,
-              const std::function<void(const std::error_code&, const InvocationContext<HealthCheckResponse>*)>& cb) override
-      LOCKS_EXCLUDED(rpc_clients_mtx_);
+  void healthCheck(const std::string& target_host, const Metadata& metadata, const HealthCheckRequest& request,
+                   std::chrono::milliseconds timeout,
+                   const std::function<void(const std::error_code&, const InvocationContext<HealthCheckResponse>*)>& cb)
+      override LOCKS_EXCLUDED(rpc_clients_mtx_);
 
   bool send(const std::string& target_host, const Metadata& metadata, SendMessageRequest& request,
             SendCallback* cb) override LOCKS_EXCLUDED(rpc_clients_mtx_);
@@ -172,7 +171,7 @@ public:
 
   void queryOffset(const std::string& target_host, const Metadata& metadata, const QueryOffsetRequest& request,
                    std::chrono::milliseconds timeout,
-                   const std::function<void(bool, const QueryOffsetResponse&)>& cb) override;
+                   const std::function<void(const std::error_code&, const QueryOffsetResponse&)>& cb) override;
 
   void pullMessage(const std::string& target_host, const Metadata& metadata, const PullMessageRequest& request,
                    std::chrono::milliseconds timeout,
