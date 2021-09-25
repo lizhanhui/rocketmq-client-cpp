@@ -3,6 +3,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <system_error>
 
 #include "absl/strings/string_view.h"
 
@@ -72,7 +73,8 @@ public:
    * @param topic Topic to query
    * @return shared pointer to topic assignment info
    */
-  void queryAssignment(const std::string& topic, const std::function<void(const TopicAssignmentPtr&)>& cb);
+  void queryAssignment(const std::string& topic,
+                       const std::function<void(const std::error_code&, const TopicAssignmentPtr&)>& cb);
 
   void syncProcessQueue(const std::string& topic, const TopicAssignmentPtr& topic_assignment,
                         const FilterExpression& filter_expression) LOCKS_EXCLUDED(process_queue_table_mtx_);

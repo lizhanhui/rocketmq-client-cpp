@@ -6,6 +6,7 @@
 #include <functional>
 #include <future>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
@@ -114,7 +115,7 @@ public:
 
   void queryAssignment(const std::string& target, const Metadata& metadata, const QueryAssignmentRequest& request,
                        std::chrono::milliseconds timeout,
-                       const std::function<void(bool, const QueryAssignmentResponse&)>& cb) override;
+                       const std::function<void(const std::error_code&, const QueryAssignmentResponse&)>& cb) override;
 
   void receiveMessage(const std::string& target, const Metadata& metadata, const ReceiveMessageRequest& request,
                       std::chrono::milliseconds timeout, const std::shared_ptr<ReceiveMessageCallback>& cb) override

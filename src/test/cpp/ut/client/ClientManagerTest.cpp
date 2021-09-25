@@ -98,7 +98,7 @@ TEST_F(ClientManagerTest, testQueryAssignment) {
       .WillRepeatedly(testing::Invoke(mock_query_assignment));
   QueryAssignmentRequest request;
   bool callback_invoked = false;
-  auto callback = [&](bool ok, const QueryAssignmentResponse& response) { callback_invoked = true; };
+  auto callback = [&](const std::error_code& ec, const QueryAssignmentResponse& response) { callback_invoked = true; };
 
   client_manager_->queryAssignment(target_host_, metadata_, request, absl::ToChronoMilliseconds(io_timeout_), callback);
 

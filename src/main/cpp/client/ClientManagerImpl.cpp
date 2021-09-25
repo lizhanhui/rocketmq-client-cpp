@@ -582,27 +582,53 @@ void ClientManagerImpl::resolveRoute(const std::string& target_host, const Metad
   client->asyncQueryRoute(request, invocation_context);
 }
 
-void ClientManagerImpl::queryAssignment(const std::string& target, const Metadata& metadata,
-                                        const QueryAssignmentRequest& request, std::chrono::milliseconds timeout,
-                                        const std::function<void(bool, const QueryAssignmentResponse&)>& cb) {
+void ClientManagerImpl::queryAssignment(
+    const std::string& target, const Metadata& metadata, const QueryAssignmentRequest& request,
+    std::chrono::milliseconds timeout,
+    const std::function<void(const std::error_code&, const QueryAssignmentResponse&)>& cb) {
   SPDLOG_DEBUG("Prepare to send query assignment request to broker[address={}]", target);
   std::shared_ptr<RpcClient> client = getRpcClient(target);
 
   auto callback = [&, cb](const InvocationContext<QueryAssignmentResponse>* invocation_context) {
     if (!invocation_context->status.ok()) {
       SPDLOG_WARN("Failed to query assignment. Reason: {}", invocation_context->status.error_message());
-      cb(false, invocation_context->response);
+      std::error_code ec = ErrorCode::RequestTimeout;
+      cb(ec, invocation_context->response);
       return;
     }
 
-    if (google::rpc::Code::OK != invocation_context->response.common().status().code()) {
-      SPDLOG_WARN("Server[host={}] failed to process query assignment request. Reason: {}",
-                  invocation_context->remote_address, invocation_context->response.common().DebugString());
-      cb(false, invocation_context->response);
-      return;
+    const auto& common = invocation_context->response.common();
+    switch (common.status().code()) {
+    case google::rpc::Code::OK: {
+      std::error_code ec;
+      cb(ec, invocation_context->response);
+    } break;
+    case google::rpc::Code::UNAUTHENTICATED: {
+      SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+      std::error_code ec = ErrorCode::Unauthorized;
+      cb(ec, invocation_context->response);
+    } break;
+    case google::rpc::Code::PERMISSION_DENIED: {
+      SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+      std::error_code ec = ErrorCode::Forbidden;
+      cb(ec, invocation_context->response);
+    } break;
+    case google::rpc::Code::INVALID_ARGUMENT: {
+      SPDLOG_WARN("InvalidArgument: {}", common.status().message());
+      std::error_code ec = ErrorCode::BadRequest;
+      cb(ec, invocation_context->response);
+    } break;
+    case google::rpc::Code::INTERNAL: {
+      SPDLOG_WARN("InternalServerError: {}", common.status().message());
+      std::error_code ec = ErrorCode::InternalServerError;
+      cb(ec, invocation_context->response);
+    } break;
+    default: {
+      SPDLOG_WARN("NotImplemented: please upgrade SDK to latest release");
+      std::error_code ec = ErrorCode::NotImplemented;
+      cb(ec, invocation_context->response);
+    } break;
     }
-
-    cb(true, invocation_context->response);
   };
 
   auto invocation_context = new InvocationContext<QueryAssignmentResponse>();

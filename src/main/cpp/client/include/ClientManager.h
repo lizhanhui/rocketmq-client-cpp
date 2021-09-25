@@ -71,7 +71,7 @@ public:
 
   virtual void queryAssignment(const std::string& target, const Metadata& metadata,
                                const QueryAssignmentRequest& request, std::chrono::milliseconds timeout,
-                               const std::function<void(bool, const QueryAssignmentResponse&)>& cb) = 0;
+                               const std::function<void(const std::error_code&, const QueryAssignmentResponse&)>& cb) = 0;
 
   virtual void receiveMessage(const std::string& target, const Metadata& metadata, const ReceiveMessageRequest& request,
                               std::chrono::milliseconds timeout, const std::shared_ptr<ReceiveMessageCallback>& cb) = 0;

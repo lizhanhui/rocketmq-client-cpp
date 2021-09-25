@@ -123,13 +123,13 @@ std::string ProducerImpl::wrapSendMessageRequest(const MQMessage& message, SendM
 SendResult ProducerImpl::send(const MQMessage& message, std::error_code& ec) noexcept {
   ensureRunning(ec);
   if (ec) {
-    return SendResult();
+    return {};
   }
 
   auto topic_publish_info = getPublishInfo(message.getTopic());
   if (!topic_publish_info) {
     ec = ErrorCode::NotFound;
-    return SendResult();
+    return {};
   }
 
   std::vector<MQMessageQueue> message_queue_list;
@@ -164,7 +164,7 @@ SendResult ProducerImpl::send(const MQMessage& message, std::error_code& ec) noe
 
   if (message_queue_list.empty()) {
     ec = ErrorCode::ServiceUnavailable;
-    return SendResult();
+    return {};
   }
 
   AwaitSendCallback callback;
@@ -176,7 +176,7 @@ SendResult ProducerImpl::send(const MQMessage& message, std::error_code& ec) noe
   }
 
   ec = callback.errorCode();
-  return SendResult();
+  return {};
 }
 
 void ProducerImpl::send(const MQMessage& message, SendCallback* cb) {
@@ -213,8 +213,7 @@ void ProducerImpl::send(const MQMessage& message, SendCallback* cb) {
     }
     
     if (message_queue_list.empty()) {
-      std::error_code ec = ErrorCode::ServiceUnavailable;
-      cb->onFailure(ec);
+      cb->onFailure(ErrorCode::ServiceUnavailable);
       return;
     }
 

@@ -223,11 +223,6 @@ void ClientImpl::updateRouteInfo() {
           topic, std::bind(&ClientImpl::updateRouteCache, this, topic, std::placeholders::_1, std::placeholders::_2));
     }
   }
-
-#ifdef ENABLE_TRACING
-  updateTraceProvider();
-#endif
-
   SPDLOG_DEBUG("Topic route info updated");
 }
 

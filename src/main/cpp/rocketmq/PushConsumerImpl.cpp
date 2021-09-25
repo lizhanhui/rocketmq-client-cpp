@@ -155,11 +155,12 @@ void PushConsumerImpl::scanAssignments() {
       std::string topic = entry.first;
       const auto& filter_expression = entry.second;
       SPDLOG_DEBUG("Scan assignments for {}", topic);
-      auto callback = [this, topic, filter_expression](const TopicAssignmentPtr& assignments) {
-        if (assignments && !assignments->assignmentList().empty()) {
+      auto callback = [this, topic, filter_expression](const std::error_code& ec,
+                                                       const TopicAssignmentPtr& assignments) {
+        if (ec) {
+          SPDLOG_WARN("Failed to acquire assignments for topic={} from load balancer. Cause: {}", topic, ec.message());
+        } else if (assignments && !assignments->assignmentList().empty()) {
           syncProcessQueue(topic, assignments, filter_expression);
-        } else {
-          SPDLOG_WARN("Failed to acquire assignments for topic={} from load balancer for the first time", topic);
         }
       };
       queryAssignment(topic, callback);
@@ -196,16 +197,15 @@ void PushConsumerImpl::wrapQueryAssignmentRequest(const std::string& topic, cons
   request.set_client_id(client_id);
 }
 
-void PushConsumerImpl::queryAssignment(const std::string& topic,
-                                       const std::function<void(const TopicAssignmentPtr&)>& cb) {
+void PushConsumerImpl::queryAssignment(
+    const std::string& topic, const std::function<void(const std::error_code&, const TopicAssignmentPtr&)>& cb) {
 
   auto callback = [this, topic, cb](const std::error_code& ec, const TopicRouteDataPtr& topic_route) {
     TopicAssignmentPtr topic_assignment;
     if (MessageModel::BROADCASTING == message_model_) {
       if (ec) {
-        SPDLOG_WARN("Failed to get valid route entries for topic={}", topic);
-        // TODO: Propogate error_code to callback.
-        cb(topic_assignment);
+        SPDLOG_WARN("Failed to get valid route entries for topic={}. Cause: {}", topic, ec.message());
+        cb(ec, topic_assignment);
       }
 
       std::vector<Assignment> assignments;
@@ -214,7 +214,7 @@ void PushConsumerImpl::queryAssignment(const std::string& topic,
         assignments.emplace_back(Assignment(partition.asMessageQueue()));
       }
       topic_assignment = std::make_shared<TopicAssignment>(std::move(assignments));
-      cb(topic_assignment);
+      cb(ec, topic_assignment);
       return;
     }
 
@@ -230,16 +230,16 @@ void PushConsumerImpl::queryAssignment(const std::string& topic,
 
     absl::flat_hash_map<std::string, std::string> metadata;
     Signature::sign(this, metadata);
-
-    auto assignment_callback = [this, cb, topic, broker_host](bool ok, const QueryAssignmentResponse& response) {
-      if (ok) {
+    auto assignment_callback = [this, cb, topic, broker_host](const std::error_code& ec,
+                                                              const QueryAssignmentResponse& response) {
+      if (ec) {
+        SPDLOG_WARN("Failed to acquire queue assignment of topic={} from brokerAddress={}", topic, broker_host);
+        cb(ec, nullptr);
+      } else {
         SPDLOG_DEBUG("Query topic assignment OK. Topic={}, group={}, assignment-size={}", topic, group_name_,
                      response.assignments().size());
         SPDLOG_TRACE("Query assignment response for {} is: {}", topic, response.DebugString());
-        cb(std::make_shared<TopicAssignment>(response));
-      } else {
-        SPDLOG_WARN("Failed to acquire queue assignment of topic={} from brokerAddress={}", topic, broker_host);
-        cb(nullptr);
+        cb(ec, std::make_shared<TopicAssignment>(response));
       }
     };
 
