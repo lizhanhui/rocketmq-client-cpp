@@ -289,7 +289,7 @@ TEST_F(ClientManagerTest, testEndTransaction) {
       .WillRepeatedly(testing::Invoke(mock_end_transaction));
   EndTransactionRequest request;
   bool callback_invoked = false;
-  auto callback = [&](bool ok, const EndTransactionResponse& response) { callback_invoked = true; };
+  auto callback = [&](const std::error_code& ec, const EndTransactionResponse& response) { callback_invoked = true; };
 
   client_manager_->endTransaction(target_host_, metadata_, request, absl::ToChronoMilliseconds(io_timeout_), callback);
   {

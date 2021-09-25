@@ -211,7 +211,7 @@ void ProducerImpl::send(const MQMessage& message, SendCallback* cb) {
     } else {
       takeMessageQueuesRoundRobin(publish_info, message_queue_list, max_attempt_times_);
     }
-    
+
     if (message_queue_list.empty()) {
       cb->onFailure(ErrorCode::ServiceUnavailable);
       return;
@@ -356,26 +356,16 @@ bool ProducerImpl::endTransaction0(const std::string& target, const std::string&
 
   absl::Mutex mtx;
   absl::CondVar cv;
-  auto cb = [&, span](bool rpc_ok, const EndTransactionResponse& response) {
+  auto cb = [&, span](const std::error_code& ec, const EndTransactionResponse& response) {
     completed = true;
-    if (!rpc_ok) {
+    if (ec) {
       {
         span.SetStatus(opencensus::trace::StatusCode::ABORTED);
-        span.AddAnnotation("gRPC tier failure");
+        span.AddAnnotation(ec.message());
         span.End();
       }
-
-      SPDLOG_WARN("Failed to send {} transaction request to {}", action, target);
+      SPDLOG_WARN("Failed to send {} transaction request to {}. Cause: ", action, target, ec.message());
       success = false;
-    } else if (response.common().status().code() != google::rpc::Code::OK) {
-      {
-        span.SetStatus(opencensus::trace::ABORTED);
-        span.AddAnnotation(response.common().status().DebugString());
-        span.End();
-      }
-      success = false;
-      SPDLOG_WARN("Server[host={}] failed to {} transaction. Reason: {}", target, action,
-                  response.common().DebugString());
     } else {
       {
         span.SetStatus(opencensus::trace::StatusCode::OK);

@@ -1134,14 +1134,16 @@ void ClientManagerImpl::nack(const std::string& target_host, const Metadata& met
   client->asyncNack(request, invocation_context);
 }
 
-void ClientManagerImpl::endTransaction(const std::string& target_host, const Metadata& metadata,
-                                       const EndTransactionRequest& request, std::chrono::milliseconds timeout,
-                                       const std::function<void(bool, const EndTransactionResponse&)>& cb) {
+void ClientManagerImpl::endTransaction(
+    const std::string& target_host, const Metadata& metadata, const EndTransactionRequest& request,
+    std::chrono::milliseconds timeout,
+    const std::function<void(const std::error_code&, const EndTransactionResponse&)>& cb) {
   RpcClientSharedPtr client = getRpcClient(target_host);
   if (!client) {
     SPDLOG_WARN("No RPC client for {}", target_host);
     EndTransactionResponse response;
-    cb(false, response);
+    std::error_code ec = ErrorCode::BadRequest;
+    cb(ec, response);
     return;
   }
 
@@ -1158,17 +1160,38 @@ void ClientManagerImpl::endTransaction(const std::string& target_host, const Met
   invocation_context->context.set_deadline(deadline);
 
   auto callback = [target_host, cb](const InvocationContext<EndTransactionResponse>* invocation_context) {
-    if (!invocation_context->status.ok() ||
-        google::rpc::Code::OK != invocation_context->response.common().status().code()) {
-      SPDLOG_WARN("Failed to endTransaction. TargetHost={}, gRPC statusCode={}, errorMessage={}", target_host.data(),
-                  invocation_context->status.error_message(), invocation_context->status.error_message());
-      cb(false, invocation_context->response);
+    std::error_code ec;
+    if (!invocation_context->status.ok()) {
+      ec = ErrorCode::BadRequest;
+      cb(ec, invocation_context->response);
       return;
     }
 
-    SPDLOG_DEBUG("endTransaction completed OK. Response: {}", invocation_context->response.DebugString());
-    cb(true, invocation_context->response);
+    const auto& common = invocation_context->response.common();
+    switch (common.status().code()) {
+    case google::rpc::Code::OK: {
+      SPDLOG_DEBUG("endTransaction completed OK. Response: {}", invocation_context->response.DebugString());
+    } break;
+    case google::rpc::Code::UNAUTHENTICATED: {
+      SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+      ec = ErrorCode::Unauthorized;
+    } break;
+    case google::rpc::Code::PERMISSION_DENIED: {
+      SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+      ec = ErrorCode::Forbidden;
+    } break;
+    case google::rpc::INTERNAL: {
+      SPDLOG_WARN("InternalServerError: {}", common.status().message());
+      ec = ErrorCode::InternalServerError;
+    } break;
+    default: {
+      SPDLOG_WARN("NotImplemented: please upgrade SDK to latest release. {}", common.status().message());
+      ec = ErrorCode::NotImplemented;
+    }
+    }
+    cb(ec, invocation_context->response);
   };
+  
   invocation_context->callback = callback;
   client->asyncEndTransaction(request, invocation_context);
 }

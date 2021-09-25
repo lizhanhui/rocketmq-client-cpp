@@ -52,7 +52,7 @@ public:
 
   MOCK_METHOD(void, endTransaction,
               (const std::string&, const Metadata&, const EndTransactionRequest&, std::chrono::milliseconds,
-               (const std::function<void(bool, const EndTransactionResponse&)>&)),
+               (const std::function<void(const std::error_code&, const EndTransactionResponse&)>&)),
               (override));
 
   MOCK_METHOD(void, queryOffset,

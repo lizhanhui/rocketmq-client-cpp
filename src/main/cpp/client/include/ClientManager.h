@@ -56,7 +56,7 @@ public:
 
   virtual void endTransaction(const std::string& target_host, const Metadata& metadata,
                               const EndTransactionRequest& request, std::chrono::milliseconds timeout,
-                              const std::function<void(bool, const EndTransactionResponse&)>& cb) = 0;
+                              const std::function<void(const std::error_code&, const EndTransactionResponse&)>& cb) = 0;
 
   virtual void queryOffset(const std::string& target_host, const Metadata& metadata, const QueryOffsetRequest& request,
                            std::chrono::milliseconds timeout,

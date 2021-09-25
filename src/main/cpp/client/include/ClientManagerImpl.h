@@ -163,7 +163,7 @@ public:
    */
   void endTransaction(const std::string& target_host, const Metadata& metadata, const EndTransactionRequest& request,
                       std::chrono::milliseconds timeout,
-                      const std::function<void(bool, const EndTransactionResponse&)>& cb) override;
+                      const std::function<void(const std::error_code&, const EndTransactionResponse&)>& cb) override;
 
   void multiplexingCall(const std::string& target, const Metadata& metadata, const MultiplexingRequest& request,
                         std::chrono::milliseconds timeout,
