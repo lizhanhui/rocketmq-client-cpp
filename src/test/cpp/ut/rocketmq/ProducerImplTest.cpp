@@ -104,7 +104,9 @@ TEST_F(ProducerImplTest, testSend) {
   producer_->start();
 
   MQMessage message(topic_, tag_, message_body_);
-  producer_->send(message);
+  std::error_code ec;
+  producer_->send(message, ec);
+  EXPECT_FALSE(ec);
   EXPECT_TRUE(cb_invoked);
   producer_->shutdown();
   scheduler.shutdown();
@@ -137,18 +139,14 @@ TEST_F(ProducerImplTest, testSend_WithMessageGroup) {
   producer_->start();
 
   MQMessage message(topic_, tag_, message_body_);
-  producer_->send(message, message_group_);
+  message.bindMessageGroup(message_group_);
+  std::error_code ec;
+  producer_->send(message, ec);
+  EXPECT_FALSE(ec);
   EXPECT_TRUE(cb_invoked);
   producer_->shutdown();
   scheduler.shutdown();
 }
-
-class TestMessageQueueSelector : public MessageQueueSelector {
-public:
-  MQMessageQueue select(const std::vector<MQMessageQueue>& mqs, const MQMessage& msg, void* arg) override {
-    return *mqs.begin();
-  }
-};
 
 TEST_F(ProducerImplTest, testSend_WithMessageQueueSelector) {
   SchedulerImpl scheduler;
@@ -176,10 +174,17 @@ TEST_F(ProducerImplTest, testSend_WithMessageQueueSelector) {
   EXPECT_CALL(*client_manager_, send).Times(testing::AtLeast(1)).WillRepeatedly(testing::Invoke(mock_send));
   producer_->start();
 
-  auto selector = absl::make_unique<TestMessageQueueSelector>();
-
   MQMessage message(topic_, tag_, message_body_);
-  producer_->send(message, selector.get(), nullptr);
+
+  std::error_code ec;
+  auto&& list = producer_->listMessageQueue(topic_, ec);
+
+  EXPECT_FALSE(list.empty());
+
+  message.bindMessageQueue(list[0]);
+
+  producer_->send(message, ec);
+
   EXPECT_TRUE(cb_invoked);
   producer_->shutdown();
   scheduler.shutdown();
@@ -193,7 +198,7 @@ public:
     completed_ = true;
     cv_.SignalAll();
   }
-  
+
   void onFailure(const std::error_code& ec) noexcept override {
     absl::MutexLock lk(&mtx_);
     completed_ = true;

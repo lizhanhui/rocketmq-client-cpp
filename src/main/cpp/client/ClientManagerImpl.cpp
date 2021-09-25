@@ -603,17 +603,57 @@ void ClientManagerImpl::receiveMessage(const std::string& target_host, const Met
   auto callback = [this, cb](const InvocationContext<ReceiveMessageResponse>* invocation_context) {
     if (invocation_context->status.ok()) {
       SPDLOG_DEBUG("Received pop response through gRPC from brokerAddress={}", invocation_context->remote_address);
-      ReceiveMessageResult receive_result;
-      this->processPopResult(invocation_context->context, invocation_context->response, receive_result,
-                             invocation_context->remote_address);
-      cb->onSuccess(receive_result);
+      const auto& common = invocation_context->response.common();
+      switch (common.status().code()) {
+      case google::rpc::Code::OK: {
+        ReceiveMessageResult receive_result;
+        this->processPopResult(invocation_context->context, invocation_context->response, receive_result,
+                               invocation_context->remote_address);
+        cb->onSuccess(receive_result);
+      } break;
+
+      case google::rpc::Code::UNAUTHENTICATED: {
+        SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+        std::error_code ec = ErrorCode::Unauthorized;
+        cb->onFailure(ec);
+      } break;
+
+      case google::rpc::Code::PERMISSION_DENIED: {
+        SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+        std::error_code ec = ErrorCode::Forbidden;
+        cb->onFailure(ec);
+      } break;
+
+      case google::rpc::Code::INVALID_ARGUMENT: {
+        SPDLOG_WARN("InvalidArgument: {}", common.status().message());
+        std::error_code ec = ErrorCode::BadRequest;
+        cb->onFailure(ec);
+      } break;
+
+      case google::rpc::Code::DEADLINE_EXCEEDED: {
+        SPDLOG_WARN("DeadlineExceeded: {}", common.status().message());
+        std::error_code ec = ErrorCode::GatewayTimeout;
+        cb->onFailure(ec);
+      } break;
+
+      case google::rpc::Code::INTERNAL: {
+        SPDLOG_WARN("IntervalServerError: {}", common.status().message());
+        std::error_code ec = ErrorCode::InternalServerError;
+        cb->onFailure(ec);
+      } break;
+      default: {
+        SPDLOG_WARN("Unsupported code. Please upgrade to use the latest release");
+        std::error_code ec = ErrorCode::NotImplemented;
+        cb->onFailure(ec);
+      } break;
+      }
+
     } else {
       SPDLOG_WARN("Failed to pop messages through GRPC from {}, gRPC code: {}, gRPC error message: {}",
                   invocation_context->remote_address, invocation_context->status.error_code(),
                   invocation_context->status.error_message());
-      MQException e(invocation_context->status.error_message(), FAILED_TO_POP_MESSAGE_ASYNCHRONOUSLY, __FILE__,
-                    __LINE__);
-      cb->onException(e);
+      std::error_code ec = ErrorCode::RequestTimeout;
+      cb->onFailure(ec);
     }
   };
   invocation_context->callback = callback;

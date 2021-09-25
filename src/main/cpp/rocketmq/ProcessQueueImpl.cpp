@@ -3,6 +3,7 @@
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <system_error>
 #include <utility>
 
 #include "ClientManagerImpl.h"
@@ -115,29 +116,61 @@ void ProcessQueueImpl::pullMessage() {
   auto timeout = consumer->getLongPollingTimeout();
 
   auto callback = [this](const InvocationContext<PullMessageResponse>* invocation_context) {
-    if (!invocation_context) {
-      MQException e("Transport layer failure", -1, __FILE__, __LINE__);
-      receive_callback_->onException(e);
-      return;
-    }
+    auto status = invocation_context->status;
+    if (status.ok()) {
+      const auto& common = invocation_context->response.common();
 
-    if (invocation_context->status.ok()) {
-      if (google::rpc::Code::OK == invocation_context->response.common().status().code()) {
+      switch (common.status().code()) {
+      case google::rpc::Code::OK: {
         ReceiveMessageResult result;
         client_manager_->processPullResult(invocation_context->context, invocation_context->response, result,
                                            invocation_context->remote_address);
         receive_callback_->onSuccess(result);
-      } else {
-        auto status = invocation_context->response.common().status();
-        MQException e(status.message(), status.code(), __FILE__, __LINE__);
-        receive_callback_->onException(e);
+      } break;
+      case google::rpc::Code::PERMISSION_DENIED: {
+        SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+        std::error_code ec = ErrorCode::Forbidden;
+        receive_callback_->onFailure(ec);
+      } break;
+      case google::rpc::Code::UNAUTHENTICATED: {
+        SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+        std::error_code ec = ErrorCode::Unauthorized;
+        receive_callback_->onFailure(ec);
+      } break;
+      case google::rpc::Code::DEADLINE_EXCEEDED: {
+        SPDLOG_WARN("DeadlineExceeded: {}", common.status().message());
+        std::error_code ec = ErrorCode::GatewayTimeout;
+        receive_callback_->onFailure(ec);
+      } break;
+      case google::rpc::Code::INVALID_ARGUMENT: {
+        SPDLOG_WARN("InvalidArgument: {}", common.status().message());
+        std::error_code ec = ErrorCode::BadRequest;
+        receive_callback_->onFailure(ec);
+      } break;
+      case google::rpc::Code::FAILED_PRECONDITION: {
+        SPDLOG_WARN("FailedPrecondition: {}", common.status().message());
+        std::error_code ec = ErrorCode::PreconditionRequired;
+        receive_callback_->onFailure(ec);
+      } break;
+      case google::rpc::Code::INTERNAL: {
+        SPDLOG_WARN("InternalServerError: {}", common.status().message());
+        std::error_code ec = ErrorCode::InternalServerError;
+        receive_callback_->onFailure(ec);
+      } break;
+      default: {
+        SPDLOG_WARN("Unimplemented: Please upgrade to use latest SDK release");
+        std::error_code ec = ErrorCode::NotImplemented;
+        receive_callback_->onFailure(ec);
+      } break;
       }
     } else {
-      MQException e(invocation_context->status.error_message(), invocation_context->status.error_code(), __FILE__,
-                    __LINE__);
-      receive_callback_->onException(e);
+      SPDLOG_WARN("Failed to receive valid gRPC response from server. gRPC-status[code={}, message={}]",
+                  status.error_code(), status.error_message());
+      std::error_code ec = ErrorCode::RequestTimeout;
+      receive_callback_->onFailure(ec);
     }
   };
+
   client_manager_->pullMessage(message_queue_.serviceAddress(), metadata, request, absl::ToChronoMilliseconds(timeout),
                                callback);
 }

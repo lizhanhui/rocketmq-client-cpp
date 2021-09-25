@@ -1,13 +1,14 @@
 #include "rocketmq/DefaultMQProducer.h"
 
-#include "MQClientTest.h"
-#include "ProducerImpl.h"
-#include "rocketmq/CredentialsProvider.h"
-#include "rocketmq/MQSelector.h"
 #include <memory>
 #include <mutex>
 #include <system_error>
 #include <utility>
+
+#include "MQClientTest.h"
+#include "ProducerImpl.h"
+#include "rocketmq/CredentialsProvider.h"
+#include "rocketmq/MQSelector.h"
 
 ROCKETMQ_NAMESPACE_BEGIN
 
@@ -112,14 +113,14 @@ class UnitTestSendCallback : public SendCallback {
 public:
   UnitTestSendCallback(absl::Mutex& mtx, absl::CondVar& cv, std::string& msg_id, bool& completed)
       : mtx_(mtx), cv_(cv), msg_id_(msg_id), completed_(completed) {}
-  
+
   void onSuccess(SendResult& send_result) noexcept override {
     absl::MutexLock lk(&mtx_);
     msg_id_ = send_result.getMsgId();
     completed_ = true;
     cv_.SignalAll();
   }
-  
+
   void onFailure(const std::error_code& e) noexcept override {
     absl::MutexLock lk(&mtx_);
     completed_ = true;
@@ -169,7 +170,9 @@ TEST_F(DefaultMQProducerUnitTest, testSendMessage) {
   message.setTopic(topic_);
   message.setBody(body_);
 
-  SendResult send_result = producer->send(message);
+  std::error_code ec;
+  SendResult send_result = producer->send(message, ec);
+  EXPECT_FALSE(ec);
   ASSERT_EQ(send_result.getMsgId(), message_id_);
   producer->shutdown();
 }

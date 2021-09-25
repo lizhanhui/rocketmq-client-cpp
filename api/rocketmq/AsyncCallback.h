@@ -8,11 +8,14 @@
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-struct AsyncCallback {};
+class AsyncCallback {
+public:
+  virtual ~AsyncCallback() = default;
+};
 
 class SendCallback : public AsyncCallback {
 public:
-  virtual ~SendCallback() = default;
+  ~SendCallback() override = default;
 
   virtual void onSuccess(SendResult &send_result) noexcept = 0;
 
@@ -21,7 +24,7 @@ public:
 
 class PullCallback : public AsyncCallback {
 public:
-  virtual ~PullCallback() = default;
+  ~PullCallback() override = default;
 
   virtual void onSuccess(const PullResult &pull_result) noexcept = 0;
 

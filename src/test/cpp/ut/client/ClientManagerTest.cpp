@@ -164,7 +164,7 @@ TEST_F(ClientManagerTest, testReceiveMessage_Failure) {
       .WillRepeatedly(testing::Invoke(mock_async_receive));
   ReceiveMessageRequest request;
 
-  EXPECT_CALL(*receive_message_callback_, onException).Times(testing::AtLeast(1));
+  EXPECT_CALL(*receive_message_callback_, onFailure).Times(testing::AtLeast(1));
 
   client_manager_->receiveMessage(target_host_, metadata_, request, absl::ToChronoMilliseconds(io_timeout_),
                                   receive_message_callback_);
