@@ -234,15 +234,15 @@ void ConsumeStandardMessageService::consumeTask(const ProcessQueueWeakPtr& proce
         };
         consumer->ack(msg, callback);
       } else {
-        auto callback = [process_queue_ptr, message_id](bool ok) {
-          if (ok) {
-            SPDLOG_DEBUG("Nack message[MessageQueue={}, MsgId={}] OK", process_queue_ptr->simpleName(), message_id);
-          } else {
-            SPDLOG_INFO(
-                "Failed to negative acknowledge message[MessageQueue={}, MsgId={}]. Message will be re-consumed "
-                "after default invisible time",
-                process_queue_ptr->simpleName(), message_id);
+        auto callback = [process_queue_ptr, message_id](const std::error_code& ec) {
+          if (ec) {
+            SPDLOG_WARN("Failed to negative acknowledge message[MessageQueue={}, MsgId={}]. Cause: {} Message will be "
+                        "re-consumed after default invisible time",
+                        process_queue_ptr->simpleName(), message_id, ec.message());
+            return;
           }
+
+          SPDLOG_DEBUG("Nack message[MessageQueue={}, MsgId={}] OK", process_queue_ptr->simpleName(), message_id);
         };
         consumer->nack(msg, callback);
       }

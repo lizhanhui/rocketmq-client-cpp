@@ -111,7 +111,10 @@ TEST_F(PushConsumerImplTest, testNack) {
   ON_CALL(*client_manager_, getScheduler).WillByDefault(testing::ReturnRef(scheduler));
 
   auto nack_cb = [](const std::string& target_host, const Metadata& metadata, const NackMessageRequest& request,
-                    std::chrono::milliseconds timeout, const std::function<void(bool)>& cb) { cb(true); };
+                    std::chrono::milliseconds timeout, const std::function<void(const std::error_code&)>& cb) {
+    std::error_code ec;
+    cb(ec);
+  };
 
   EXPECT_CALL(*client_manager_, nack).Times(testing::AtLeast(1)).WillRepeatedly(testing::Invoke(nack_cb));
 
@@ -120,7 +123,7 @@ TEST_F(PushConsumerImplTest, testNack) {
   bool completed = false;
   absl::Mutex mtx;
   absl::CondVar cv;
-  auto callback = [&](bool ok) {
+  auto callback = [&](const std::error_code& ec) {
     absl::MutexLock lk(&mtx);
     completed = true;
     cv.SignalAll();

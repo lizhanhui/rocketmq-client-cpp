@@ -47,7 +47,7 @@ public:
                    std::chrono::milliseconds timeout, const std::function<void(const std::error_code&)>& cb) = 0;
 
   virtual void nack(const std::string& target_host, const Metadata& metadata, const NackMessageRequest& request,
-                    std::chrono::milliseconds timeout, const std::function<void(bool)>& callback) = 0;
+                    std::chrono::milliseconds timeout, const std::function<void(const std::error_code&)>& callback) = 0;
 
   virtual void forwardMessageToDeadLetterQueue(
       const std::string& target_host, const Metadata& metadata, const ForwardMessageToDeadLetterQueueRequest& request,

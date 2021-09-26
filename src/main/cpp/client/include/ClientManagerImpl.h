@@ -140,7 +140,7 @@ public:
            std::chrono::milliseconds timeout, const std::function<void(const std::error_code&)>& cb) override;
 
   void nack(const std::string& target_host, const Metadata& metadata, const NackMessageRequest& request,
-            std::chrono::milliseconds timeout, const std::function<void(bool)>& callback) override;
+            std::chrono::milliseconds timeout, const std::function<void(const std::error_code&)>& callback) override;
 
   void forwardMessageToDeadLetterQueue(
       const std::string& target_host, const Metadata& metadata, const ForwardMessageToDeadLetterQueueRequest& request,

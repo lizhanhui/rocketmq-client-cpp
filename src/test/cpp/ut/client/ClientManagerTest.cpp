@@ -225,7 +225,7 @@ TEST_F(ClientManagerTest, testNack) {
   EXPECT_CALL(*rpc_client_, asyncNack).Times(testing::AtLeast(1)).WillRepeatedly(testing::Invoke(mock_nack));
   NackMessageRequest request;
   bool callback_invoked = false;
-  auto callback = [&](bool ok) { callback_invoked = true; };
+  auto callback = [&](const std::error_code& ec) { callback_invoked = true; };
 
   client_manager_->nack(target_host_, metadata_, request, absl::ToChronoMilliseconds(io_timeout_), callback);
 

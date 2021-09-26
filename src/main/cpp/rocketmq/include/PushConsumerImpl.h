@@ -111,7 +111,7 @@ public:
    *
    * @param message Message to negate on the broker side.
    */
-  void nack(const MQMessageExt& message, const std::function<void(bool)>& callback) override;
+  void nack(const MQMessageExt& message, const std::function<void(const std::error_code&)>& callback) override;
 
   void forwardToDeadLetterQueue(const MQMessageExt& message, const std::function<void(bool)>& cb) override;
 

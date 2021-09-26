@@ -24,7 +24,7 @@ public:
 
   MOCK_METHOD(void, updateOffset, (const MQMessageQueue&, int64_t), (override));
 
-  MOCK_METHOD(void, nack, (const MQMessageExt&, const std::function<void(bool)>&), (override));
+  MOCK_METHOD(void, nack, (const MQMessageExt&, const std::function<void(const std::error_code&)>&), (override));
 
   MOCK_METHOD(std::shared_ptr<ConsumeMessageService>, getConsumeMessageService, (), (override));
 

@@ -405,7 +405,7 @@ void PushConsumerImpl::ack(const MQMessageExt& msg, const std::function<void(con
   client_manager_->ack(target_host, metadata, request, absl::ToChronoMilliseconds(io_timeout_), callback);
 }
 
-void PushConsumerImpl::nack(const MQMessageExt& msg, const std::function<void(bool)>& callback) {
+void PushConsumerImpl::nack(const MQMessageExt& msg, const std::function<void(const std::error_code&)>& callback) {
   std::string target_host = MessageAccessor::targetEndpoint(msg);
 
   absl::flat_hash_map<std::string, std::string> metadata;

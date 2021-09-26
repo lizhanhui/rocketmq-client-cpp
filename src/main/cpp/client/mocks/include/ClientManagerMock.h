@@ -41,7 +41,7 @@ public:
 
   MOCK_METHOD(void, nack,
               (const std::string&, const Metadata&, const NackMessageRequest&, std::chrono::milliseconds,
-               (const std::function<void(bool)>&)),
+               (const std::function<void(const std::error_code&)>&)),
               (override));
 
   MOCK_METHOD(void, forwardMessageToDeadLetterQueue,

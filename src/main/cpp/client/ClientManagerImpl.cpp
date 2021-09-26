@@ -1137,26 +1137,26 @@ void ClientManagerImpl::ack(const std::string& target, const Metadata& metadata,
     const auto& common = invocation_context->response.common();
     switch (common.status().code()) {
       case google::rpc::Code::OK: {
-        SPDLOG_DEBUG("Ack OK. {}", common.status().message());
+        SPDLOG_DEBUG("Ack OK. host={}", invocation_context->remote_address);
       } break;
       case google::rpc::Code::UNAUTHENTICATED: {
-        SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+        SPDLOG_WARN("Unauthenticated: {}, host={}", common.status().message(), invocation_context->remote_address);
         ec = ErrorCode::Unauthorized;
       } break;
       case google::rpc::Code::PERMISSION_DENIED: {
-        SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+        SPDLOG_WARN("PermissionDenied: {}, host={}", common.status().message(), invocation_context->remote_address);
         ec = ErrorCode::Forbidden;
       } break;
       case google::rpc::Code::INVALID_ARGUMENT: {
-        SPDLOG_WARN("InvalidArgument: {}", common.status().message());
+        SPDLOG_WARN("InvalidArgument: {}, host={}", common.status().message(), invocation_context->remote_address);
         ec = ErrorCode::BadRequest;
       } break;
       case google::rpc::Code::INTERNAL: {
-        SPDLOG_WARN("InternalServerError: {}", common.status().message());
+        SPDLOG_WARN("InternalServerError: {}, host={}", common.status().message(), invocation_context->remote_address);
         ec = ErrorCode::InternalServerError;
       } break;
       default: {
-        SPDLOG_WARN("NotImplement: please upgrade SDK to latest release");
+        SPDLOG_WARN("NotImplement: please upgrade SDK to latest release. host={}", invocation_context->remote_address);
         ec = ErrorCode::NotImplemented;
       } break;
     }
@@ -1168,7 +1168,7 @@ void ClientManagerImpl::ack(const std::string& target, const Metadata& metadata,
 
 void ClientManagerImpl::nack(const std::string& target_host, const Metadata& metadata,
                              const NackMessageRequest& request, std::chrono::milliseconds timeout,
-                             const std::function<void(bool)>& completion_callback) {
+                             const std::function<void(const std::error_code&)>& completion_callback) {
   RpcClientSharedPtr client = getRpcClient(target_host);
   assert(client);
   auto invocation_context = new InvocationContext<NackMessageResponse>();
@@ -1180,12 +1180,43 @@ void ClientManagerImpl::nack(const std::string& target_host, const Metadata& met
   }
 
   auto callback = [completion_callback](const InvocationContext<NackMessageResponse>* invocation_context) {
-    if (invocation_context->status.ok() &&
-        google::rpc::Code::OK == invocation_context->response.common().status().code()) {
-      completion_callback(true);
-    } else {
-      completion_callback(false);
+    if (!invocation_context->status.ok()) {
+      SPDLOG_WARN("Failed to write Nack request to wire. gRPC-code: {}, gRPC-message: {}",
+                  invocation_context->status.error_code(), invocation_context->status.error_message());
+      std::error_code ec = ErrorCode::RequestTimeout;
+      completion_callback(ec);
+      return;
     }
+
+    std::error_code ec;
+    const auto& common = invocation_context->response.common();
+    switch (common.status().code()) {
+      case google::rpc::Code::OK: {
+        SPDLOG_DEBUG("Nack to {} OK", invocation_context->remote_address);
+        break;
+      };
+      case google::rpc::Code::UNAUTHENTICATED: {
+        SPDLOG_WARN("Unauthenticated: {}, host={}", common.status().message(), invocation_context->remote_address);
+        ec = ErrorCode::Unauthorized;
+        break;
+      }
+      case google::rpc::Code::PERMISSION_DENIED: {
+        SPDLOG_WARN("PermissionDenied: {}, host={}", common.status().message(), invocation_context->remote_address);
+        ec = ErrorCode::Forbidden;
+        break;
+      }
+      case google::rpc::Code::INTERNAL: {
+        SPDLOG_WARN("InternalServerError: {}, host={}", common.status().message(), invocation_context->remote_address);
+        ec = ErrorCode::InternalServerError;
+        break;
+      }
+      default: {
+        SPDLOG_WARN("NotImplemented: Please upgrade to latest SDK, host={}", invocation_context->remote_address);
+        ec = ErrorCode::NotImplemented;
+        break;
+      }
+    }
+    completion_callback(ec);
   };
   invocation_context->callback = callback;
   client->asyncNack(request, invocation_context);
@@ -1219,6 +1250,9 @@ void ClientManagerImpl::endTransaction(
   auto callback = [target_host, cb](const InvocationContext<EndTransactionResponse>* invocation_context) {
     std::error_code ec;
     if (!invocation_context->status.ok()) {
+      SPDLOG_WARN("Failed to write EndTransaction to wire. gRPC-code: {}, gRPC-message: {}, host={}",
+                  invocation_context->status.error_code(), invocation_context->status.error_message(),
+                  invocation_context->remote_address);
       ec = ErrorCode::BadRequest;
       cb(ec, invocation_context->response);
       return;
@@ -1227,22 +1261,24 @@ void ClientManagerImpl::endTransaction(
     const auto& common = invocation_context->response.common();
     switch (common.status().code()) {
       case google::rpc::Code::OK: {
-        SPDLOG_DEBUG("endTransaction completed OK. Response: {}", invocation_context->response.DebugString());
+        SPDLOG_DEBUG("endTransaction completed OK. Response: {}, host={}", invocation_context->response.DebugString(),
+                     invocation_context->remote_address);
       } break;
       case google::rpc::Code::UNAUTHENTICATED: {
-        SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+        SPDLOG_WARN("Unauthenticated: {}, host={}", common.status().message(), invocation_context->remote_address);
         ec = ErrorCode::Unauthorized;
       } break;
       case google::rpc::Code::PERMISSION_DENIED: {
-        SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+        SPDLOG_WARN("PermissionDenied: {}, host={}", common.status().message(), invocation_context->remote_address);
         ec = ErrorCode::Forbidden;
       } break;
       case google::rpc::INTERNAL: {
-        SPDLOG_WARN("InternalServerError: {}", common.status().message());
+        SPDLOG_WARN("InternalServerError: {}, host={}", common.status().message(), invocation_context->remote_address);
         ec = ErrorCode::InternalServerError;
       } break;
       default: {
-        SPDLOG_WARN("NotImplemented: please upgrade SDK to latest release. {}", common.status().message());
+        SPDLOG_WARN("NotImplemented: please upgrade SDK to latest release. {}, host={}", common.status().message(),
+                    invocation_context->remote_address);
         ec = ErrorCode::NotImplemented;
       }
     }
@@ -1311,6 +1347,9 @@ void ClientManagerImpl::queryOffset(const std::string& target_host, const Metada
     std::error_code ec;
 
     if (!invocation_context->status.ok()) {
+      SPDLOG_WARN("Failed to write QueryOffset request to wire. gRPC-code: {}, gRPC-message: {}, host={}",
+                  invocation_context->status.error_code(), invocation_context->status.error_message(),
+                  invocation_context->remote_address);
       ec = ErrorCode::RequestTimeout;
       cb(ec, invocation_context->response);
       return;
@@ -1323,22 +1362,23 @@ void ClientManagerImpl::queryOffset(const std::string& target_host, const Metada
         cb(ec, invocation_context->response);
       } break;
       case google::rpc::Code::UNAUTHENTICATED: {
-        SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+        SPDLOG_WARN("Unauthenticated: {}, host={}", common.status().message(), invocation_context->remote_address);
         ec = ErrorCode::Unauthorized;
         cb(ec, invocation_context->response);
       } break;
       case google::rpc::Code::PERMISSION_DENIED: {
-        SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+        SPDLOG_WARN("PermissionDenied: {}, host={}", common.status().message(), invocation_context->remote_address);
         ec = ErrorCode::Forbidden;
         cb(ec, invocation_context->response);
       } break;
       case google::rpc::Code::INTERNAL: {
-        SPDLOG_WARN("InternalServerError: {}", common.status().message());
+        SPDLOG_WARN("InternalServerError: {}, host={}", common.status().message(), invocation_context->remote_address);
         ec = ErrorCode::InternalServerError;
         cb(ec, invocation_context->response);
       } break;
       default: {
-        SPDLOG_WARN("NotImplemented: please upgrade SDK to the latest release");
+        SPDLOG_WARN("NotImplemented: please upgrade SDK to the latest release. host={}",
+                    invocation_context->remote_address);
         ec = ErrorCode::NotImplemented;
         cb(ec, invocation_context->response);
       }
@@ -1416,6 +1456,8 @@ bool ClientManagerImpl::notifyClientTermination(const std::string& target_host, 
   NotifyClientTerminationResponse response;
   grpc::Status status = client->notifyClientTermination(&context, request, &response);
   if (!status.ok()) {
+    SPDLOG_WARN("Failed to write NotifyClientTermination request to wire. gRPC-code: {}, gRPC-message: {}, host={}",
+                status.error_code(), status.error_message(), target_host);
     return false;
   }
 
