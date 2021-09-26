@@ -21,7 +21,9 @@ public:
     metadata_.insert({"name", "Donald.J.Trump"});
   }
 
-  void TearDown() override { client_manager_->shutdown(); }
+  void TearDown() override {
+    client_manager_->shutdown();
+  }
 
 protected:
   std::string resource_namespace_{"mq://test"};
@@ -194,7 +196,7 @@ TEST_F(ClientManagerTest, testAck) {
   EXPECT_CALL(*rpc_client_, asyncAck).Times(testing::AtLeast(1)).WillRepeatedly(testing::Invoke(mock_ack));
   AckMessageRequest request;
   bool callback_invoked = false;
-  auto callback = [&](bool ok) { callback_invoked = true; };
+  auto callback = [&](const std::error_code& ec) { callback_invoked = true; };
 
   client_manager_->ack(target_host_, metadata_, request, absl::ToChronoMilliseconds(io_timeout_), callback);
 
@@ -269,7 +271,8 @@ TEST_F(ClientManagerTest, testForwardMessageToDeadLetterQueue) {
   EXPECT_TRUE(callback_invoked);
 }
 
-TEST_F(ClientManagerTest, testMultiplexingCall) {}
+TEST_F(ClientManagerTest, testMultiplexingCall) {
+}
 
 TEST_F(ClientManagerTest, testEndTransaction) {
   bool completed = false;

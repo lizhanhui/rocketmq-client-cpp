@@ -186,29 +186,29 @@ void ClientManagerImpl::healthCheck(
 
     const auto& common = ctx->response.common();
     switch (common.status().code()) {
-    case google::rpc::Code::OK: {
-      cb(ec, ctx);
-    } break;
-    case google::rpc::Code::UNAUTHENTICATED: {
-      SPDLOG_WARN("Unauthenticated: {}", common.status().message());
-      ec = ErrorCode::Unauthorized;
-      cb(ec, ctx);
-    } break;
-    case google::rpc::Code::PERMISSION_DENIED: {
-      SPDLOG_WARN("PermissionDenied: {}", common.status().message());
-      ec = ErrorCode::Forbidden;
-      cb(ec, ctx);
-    } break;
-    case google::rpc::Code::INTERNAL: {
-      SPDLOG_WARN("InternalServerError: {}", common.status().message());
-      ec = ErrorCode::InternalServerError;
-      cb(ec, ctx);
-    } break;
-    default: {
-      SPDLOG_WARN("NotImplemented: please upgrade SDK to latest release");
-      ec = ErrorCode::NotImplemented;
-      cb(ec, ctx);
-    } break;
+      case google::rpc::Code::OK: {
+        cb(ec, ctx);
+      } break;
+      case google::rpc::Code::UNAUTHENTICATED: {
+        SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+        ec = ErrorCode::Unauthorized;
+        cb(ec, ctx);
+      } break;
+      case google::rpc::Code::PERMISSION_DENIED: {
+        SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+        ec = ErrorCode::Forbidden;
+        cb(ec, ctx);
+      } break;
+      case google::rpc::Code::INTERNAL: {
+        SPDLOG_WARN("InternalServerError: {}", common.status().message());
+        ec = ErrorCode::InternalServerError;
+        cb(ec, ctx);
+      } break;
+      default: {
+        SPDLOG_WARN("NotImplemented: please upgrade SDK to latest release");
+        ec = ErrorCode::NotImplemented;
+        cb(ec, ctx);
+      } break;
     }
   };
 
@@ -307,32 +307,32 @@ void ClientManagerImpl::heartbeat(const std::string& target_host, const Metadata
     const auto& common = invocation_context->response.common();
     std::error_code ec;
     switch (common.status().code()) {
-    case google::rpc::Code::OK: {
-      cb(ec, invocation_context->response);
-    } break;
-    case google::rpc::Code::UNAUTHENTICATED: {
-      SPDLOG_WARN("Unauthenticated: {}", common.status().message());
-      ec = ErrorCode::Unauthorized;
-      cb(ec, invocation_context->response);
-    } break;
-    case google::rpc::Code::PERMISSION_DENIED: {
-      SPDLOG_WARN("PermissionDenied: {}", common.status().message());
-      ec = ErrorCode::Forbidden;
-      cb(ec, invocation_context->response);
-    } break;
-    case google::rpc::Code::INVALID_ARGUMENT: {
-      SPDLOG_WARN("InvalidArgument: {}", common.status().message());
-      ec = ErrorCode::BadRequest;
-      cb(ec, invocation_context->response);
-    } break;
-    case google::rpc::Code::INTERNAL: {
-      SPDLOG_WARN("InternalServerError: {}", common.status().message());
-      ec = ErrorCode::InternalServerError;
-      cb(ec, invocation_context->response);
-    } break;
-    default: {
-      SPDLOG_WARN("NotImplemented: Please upgrade SDK to latest release");
-    } break;
+      case google::rpc::Code::OK: {
+        cb(ec, invocation_context->response);
+      } break;
+      case google::rpc::Code::UNAUTHENTICATED: {
+        SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+        ec = ErrorCode::Unauthorized;
+        cb(ec, invocation_context->response);
+      } break;
+      case google::rpc::Code::PERMISSION_DENIED: {
+        SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+        ec = ErrorCode::Forbidden;
+        cb(ec, invocation_context->response);
+      } break;
+      case google::rpc::Code::INVALID_ARGUMENT: {
+        SPDLOG_WARN("InvalidArgument: {}", common.status().message());
+        ec = ErrorCode::BadRequest;
+        cb(ec, invocation_context->response);
+      } break;
+      case google::rpc::Code::INTERNAL: {
+        SPDLOG_WARN("InternalServerError: {}", common.status().message());
+        ec = ErrorCode::InternalServerError;
+        cb(ec, invocation_context->response);
+      } break;
+      default: {
+        SPDLOG_WARN("NotImplemented: Please upgrade SDK to latest release");
+      } break;
     }
   };
 
@@ -409,44 +409,53 @@ bool ClientManagerImpl::send(const std::string& target_host, const Metadata& met
       return;
     }
 
-    if (invocation_context->status.ok()) {
-      switch (invocation_context->response.common().status().code()) {
-      case google::rpc::Code::OK: {
-        SendResult send_result;
-        send_result.setSendStatus(SendStatus::SEND_OK);
-        send_result.setMsgId(invocation_context->response.message_id());
-        send_result.setTransactionId(invocation_context->response.transaction_id());
-        cb->onSuccess(send_result);
-      } break;
+    const auto& common = invocation_context->response.common();
 
-      case google::rpc::Code::INVALID_ARGUMENT: {
-        std::error_code ec = ErrorCode::BadRequest;
-        cb->onFailure(ec);
-      } break;
-      case google::rpc::Code::UNAUTHENTICATED: {
-        std::error_code ec = ErrorCode::Unauthorized;
-        cb->onFailure(ec);
-      } break;
-      case google::rpc::Code::PERMISSION_DENIED: {
-        std::error_code ec = ErrorCode::Forbidden;
-        cb->onFailure(ec);
-      } break;
-      case google::rpc::Code::INTERNAL: {
-        std::error_code ec = ErrorCode::InternalServerError;
-        cb->onFailure(ec);
-      } break;
-      default: {
-        std::error_code ec = ErrorCode::NotImplemented;
-        cb->onFailure(ec);
-        SPDLOG_WARN("Unsupported status code. Check and upgrade SDK to the latest");
-      } break;
-      }
-    } else {
+    if (!invocation_context->status.ok()) {
       SPDLOG_WARN("Failed to send message to {} due to gRPC error. gRPC code: {}, gRPC error message: {}",
                   invocation_context->remote_address, invocation_context->status.error_code(),
                   invocation_context->status.error_message());
       std::error_code ec = ErrorCode::RequestTimeout;
       cb->onFailure(ec);
+      return;
+    }
+
+    if (invocation_context->status.ok()) {
+      switch (invocation_context->response.common().status().code()) {
+        case google::rpc::Code::OK: {
+          SendResult send_result;
+          send_result.setSendStatus(SendStatus::SEND_OK);
+          send_result.setMsgId(invocation_context->response.message_id());
+          send_result.setTransactionId(invocation_context->response.transaction_id());
+          cb->onSuccess(send_result);
+        } break;
+
+        case google::rpc::Code::INVALID_ARGUMENT: {
+          SPDLOG_WARN("InvalidArgument: {}", common.status().message());
+          std::error_code ec = ErrorCode::BadRequest;
+          cb->onFailure(ec);
+        } break;
+        case google::rpc::Code::UNAUTHENTICATED: {
+          SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+          std::error_code ec = ErrorCode::Unauthorized;
+          cb->onFailure(ec);
+        } break;
+        case google::rpc::Code::PERMISSION_DENIED: {
+          SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+          std::error_code ec = ErrorCode::Forbidden;
+          cb->onFailure(ec);
+        } break;
+        case google::rpc::Code::INTERNAL: {
+          SPDLOG_WARN("InternalServerError: {}", common.status().message());
+          std::error_code ec = ErrorCode::InternalServerError;
+          cb->onFailure(ec);
+        } break;
+        default: {
+          SPDLOG_WARN("Unsupported status code. Check and upgrade SDK to the latest");
+          std::error_code ec = ErrorCode::NotImplemented;
+          cb->onFailure(ec);
+        } break;
+      }
     }
   };
 
@@ -560,87 +569,87 @@ void ClientManagerImpl::resolveRoute(const std::string& target_host, const Metad
     std::error_code ec;
     const auto& common = invocation_context->response.common();
     switch (common.status().code()) {
-    case google::rpc::Code::OK: {
-      auto& partitions = invocation_context->response.partitions();
-      std::vector<Partition> topic_partitions;
-      for (const auto& partition : partitions) {
-        Topic t(partition.topic().resource_namespace(), partition.topic().name());
+      case google::rpc::Code::OK: {
+        auto& partitions = invocation_context->response.partitions();
+        std::vector<Partition> topic_partitions;
+        for (const auto& partition : partitions) {
+          Topic t(partition.topic().resource_namespace(), partition.topic().name());
 
-        auto& broker = partition.broker();
-        AddressScheme scheme = AddressScheme::IPv4;
-        switch (broker.endpoints().scheme()) {
-        case rmq::AddressScheme::IPv4:
-          scheme = AddressScheme::IPv4;
-          break;
-        case rmq::AddressScheme::IPv6:
-          scheme = AddressScheme::IPv6;
-          break;
-        case rmq::AddressScheme::DOMAIN_NAME:
-          scheme = AddressScheme::DOMAIN_NAME;
-          break;
-        default:
-          break;
+          auto& broker = partition.broker();
+          AddressScheme scheme = AddressScheme::IPv4;
+          switch (broker.endpoints().scheme()) {
+            case rmq::AddressScheme::IPv4:
+              scheme = AddressScheme::IPv4;
+              break;
+            case rmq::AddressScheme::IPv6:
+              scheme = AddressScheme::IPv6;
+              break;
+            case rmq::AddressScheme::DOMAIN_NAME:
+              scheme = AddressScheme::DOMAIN_NAME;
+              break;
+            default:
+              break;
+          }
+
+          std::vector<Address> addresses;
+          for (const auto& address : broker.endpoints().addresses()) {
+            addresses.emplace_back(Address{address.host(), address.port()});
+          }
+          ServiceAddress service_address(scheme, addresses);
+          Broker b(partition.broker().name(), partition.broker().id(), service_address);
+
+          Permission permission = Permission::READ_WRITE;
+          switch (partition.permission()) {
+            case rmq::Permission::READ:
+              permission = Permission::READ;
+              break;
+
+            case rmq::Permission::WRITE:
+              permission = Permission::WRITE;
+              break;
+            case rmq::Permission::READ_WRITE:
+              permission = Permission::READ_WRITE;
+              break;
+            default:
+              break;
+          }
+          Partition topic_partition(t, partition.id(), permission, std::move(b));
+          topic_partitions.emplace_back(std::move(topic_partition));
         }
-
-        std::vector<Address> addresses;
-        for (const auto& address : broker.endpoints().addresses()) {
-          addresses.emplace_back(Address{address.host(), address.port()});
-        }
-        ServiceAddress service_address(scheme, addresses);
-        Broker b(partition.broker().name(), partition.broker().id(), service_address);
-
-        Permission permission = Permission::READ_WRITE;
-        switch (partition.permission()) {
-        case rmq::Permission::READ:
-          permission = Permission::READ;
-          break;
-
-        case rmq::Permission::WRITE:
-          permission = Permission::WRITE;
-          break;
-        case rmq::Permission::READ_WRITE:
-          permission = Permission::READ_WRITE;
-          break;
-        default:
-          break;
-        }
-        Partition topic_partition(t, partition.id(), permission, std::move(b));
-        topic_partitions.emplace_back(std::move(topic_partition));
-      }
-      auto ptr =
-          std::make_shared<TopicRouteData>(std::move(topic_partitions), invocation_context->response.DebugString());
-      cb(ec, ptr);
-    } break;
-    case google::rpc::Code::UNAUTHENTICATED: {
-      SPDLOG_WARN("Unauthenticated: {}", common.status().message());
-      ec = ErrorCode::Unauthorized;
-      cb(ec, nullptr);
-    } break;
-    case google::rpc::Code::PERMISSION_DENIED: {
-      SPDLOG_WARN("PermissionDenied: {}", common.status().message());
-      ec = ErrorCode::Forbidden;
-      cb(ec, nullptr);
-    } break;
-    case google::rpc::Code::INVALID_ARGUMENT: {
-      SPDLOG_WARN("InvalidArgument: {}", common.status().message());
-      ec = ErrorCode::BadRequest;
-      cb(ec, nullptr);
-    } break;
-    case google::rpc::Code::NOT_FOUND: {
-      SPDLOG_WARN("NotFound: {}", common.status().message());
-      ec = ErrorCode::NotFound;
-      cb(ec, nullptr);
-    } break;
-    case google::rpc::Code::INTERNAL: {
-      SPDLOG_WARN("InternalServerError: {}", common.status().message());
-      ec = ErrorCode::InternalServerError;
-      cb(ec, nullptr);
-    } break;
-    default: {
-      SPDLOG_WARN("NotImplement: Please upgrade to latest SDK release");
-      ec = ErrorCode::NotImplemented;
-      cb(ec, nullptr);
-    } break;
+        auto ptr =
+            std::make_shared<TopicRouteData>(std::move(topic_partitions), invocation_context->response.DebugString());
+        cb(ec, ptr);
+      } break;
+      case google::rpc::Code::UNAUTHENTICATED: {
+        SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+        ec = ErrorCode::Unauthorized;
+        cb(ec, nullptr);
+      } break;
+      case google::rpc::Code::PERMISSION_DENIED: {
+        SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+        ec = ErrorCode::Forbidden;
+        cb(ec, nullptr);
+      } break;
+      case google::rpc::Code::INVALID_ARGUMENT: {
+        SPDLOG_WARN("InvalidArgument: {}", common.status().message());
+        ec = ErrorCode::BadRequest;
+        cb(ec, nullptr);
+      } break;
+      case google::rpc::Code::NOT_FOUND: {
+        SPDLOG_WARN("NotFound: {}", common.status().message());
+        ec = ErrorCode::NotFound;
+        cb(ec, nullptr);
+      } break;
+      case google::rpc::Code::INTERNAL: {
+        SPDLOG_WARN("InternalServerError: {}", common.status().message());
+        ec = ErrorCode::InternalServerError;
+        cb(ec, nullptr);
+      } break;
+      default: {
+        SPDLOG_WARN("NotImplement: Please upgrade to latest SDK release");
+        ec = ErrorCode::NotImplemented;
+        cb(ec, nullptr);
+      } break;
     }
   };
   invocation_context->callback = callback;
@@ -663,37 +672,33 @@ void ClientManagerImpl::queryAssignment(
     }
 
     const auto& common = invocation_context->response.common();
+    std::error_code ec;
     switch (common.status().code()) {
-    case google::rpc::Code::OK: {
-      std::error_code ec;
-      cb(ec, invocation_context->response);
-    } break;
-    case google::rpc::Code::UNAUTHENTICATED: {
-      SPDLOG_WARN("Unauthenticated: {}", common.status().message());
-      std::error_code ec = ErrorCode::Unauthorized;
-      cb(ec, invocation_context->response);
-    } break;
-    case google::rpc::Code::PERMISSION_DENIED: {
-      SPDLOG_WARN("PermissionDenied: {}", common.status().message());
-      std::error_code ec = ErrorCode::Forbidden;
-      cb(ec, invocation_context->response);
-    } break;
-    case google::rpc::Code::INVALID_ARGUMENT: {
-      SPDLOG_WARN("InvalidArgument: {}", common.status().message());
-      std::error_code ec = ErrorCode::BadRequest;
-      cb(ec, invocation_context->response);
-    } break;
-    case google::rpc::Code::INTERNAL: {
-      SPDLOG_WARN("InternalServerError: {}", common.status().message());
-      std::error_code ec = ErrorCode::InternalServerError;
-      cb(ec, invocation_context->response);
-    } break;
-    default: {
-      SPDLOG_WARN("NotImplemented: please upgrade SDK to latest release");
-      std::error_code ec = ErrorCode::NotImplemented;
-      cb(ec, invocation_context->response);
-    } break;
+      case google::rpc::Code::OK: {
+        SPDLOG_DEBUG("Query assignment OK");
+      } break;
+      case google::rpc::Code::UNAUTHENTICATED: {
+        SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+        ec = ErrorCode::Unauthorized;
+      } break;
+      case google::rpc::Code::PERMISSION_DENIED: {
+        SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+        ec = ErrorCode::Forbidden;
+      } break;
+      case google::rpc::Code::INVALID_ARGUMENT: {
+        SPDLOG_WARN("InvalidArgument: {}", common.status().message());
+        ec = ErrorCode::BadRequest;
+      } break;
+      case google::rpc::Code::INTERNAL: {
+        SPDLOG_WARN("InternalServerError: {}", common.status().message());
+        ec = ErrorCode::InternalServerError;
+      } break;
+      default: {
+        SPDLOG_WARN("NotImplemented: please upgrade SDK to latest release");
+        ec = ErrorCode::NotImplemented;
+      } break;
     }
+    cb(ec, invocation_context->response);
   };
 
   auto invocation_context = new InvocationContext<QueryAssignmentResponse>();
@@ -726,47 +731,47 @@ void ClientManagerImpl::receiveMessage(const std::string& target_host, const Met
       SPDLOG_DEBUG("Received pop response through gRPC from brokerAddress={}", invocation_context->remote_address);
       const auto& common = invocation_context->response.common();
       switch (common.status().code()) {
-      case google::rpc::Code::OK: {
-        ReceiveMessageResult receive_result;
-        this->processPopResult(invocation_context->context, invocation_context->response, receive_result,
-                               invocation_context->remote_address);
-        cb->onSuccess(receive_result);
-      } break;
+        case google::rpc::Code::OK: {
+          ReceiveMessageResult receive_result;
+          this->processPopResult(invocation_context->context, invocation_context->response, receive_result,
+                                 invocation_context->remote_address);
+          cb->onSuccess(receive_result);
+        } break;
 
-      case google::rpc::Code::UNAUTHENTICATED: {
-        SPDLOG_WARN("Unauthenticated: {}", common.status().message());
-        std::error_code ec = ErrorCode::Unauthorized;
-        cb->onFailure(ec);
-      } break;
+        case google::rpc::Code::UNAUTHENTICATED: {
+          SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+          std::error_code ec = ErrorCode::Unauthorized;
+          cb->onFailure(ec);
+        } break;
 
-      case google::rpc::Code::PERMISSION_DENIED: {
-        SPDLOG_WARN("PermissionDenied: {}", common.status().message());
-        std::error_code ec = ErrorCode::Forbidden;
-        cb->onFailure(ec);
-      } break;
+        case google::rpc::Code::PERMISSION_DENIED: {
+          SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+          std::error_code ec = ErrorCode::Forbidden;
+          cb->onFailure(ec);
+        } break;
 
-      case google::rpc::Code::INVALID_ARGUMENT: {
-        SPDLOG_WARN("InvalidArgument: {}", common.status().message());
-        std::error_code ec = ErrorCode::BadRequest;
-        cb->onFailure(ec);
-      } break;
+        case google::rpc::Code::INVALID_ARGUMENT: {
+          SPDLOG_WARN("InvalidArgument: {}", common.status().message());
+          std::error_code ec = ErrorCode::BadRequest;
+          cb->onFailure(ec);
+        } break;
 
-      case google::rpc::Code::DEADLINE_EXCEEDED: {
-        SPDLOG_WARN("DeadlineExceeded: {}", common.status().message());
-        std::error_code ec = ErrorCode::GatewayTimeout;
-        cb->onFailure(ec);
-      } break;
+        case google::rpc::Code::DEADLINE_EXCEEDED: {
+          SPDLOG_WARN("DeadlineExceeded: {}", common.status().message());
+          std::error_code ec = ErrorCode::GatewayTimeout;
+          cb->onFailure(ec);
+        } break;
 
-      case google::rpc::Code::INTERNAL: {
-        SPDLOG_WARN("IntervalServerError: {}", common.status().message());
-        std::error_code ec = ErrorCode::InternalServerError;
-        cb->onFailure(ec);
-      } break;
-      default: {
-        SPDLOG_WARN("Unsupported code. Please upgrade to use the latest release");
-        std::error_code ec = ErrorCode::NotImplemented;
-        cb->onFailure(ec);
-      } break;
+        case google::rpc::Code::INTERNAL: {
+          SPDLOG_WARN("IntervalServerError: {}", common.status().message());
+          std::error_code ec = ErrorCode::InternalServerError;
+          cb->onFailure(ec);
+        } break;
+        default: {
+          SPDLOG_WARN("Unsupported code. Please upgrade to use the latest release");
+          std::error_code ec = ErrorCode::NotImplemented;
+          cb->onFailure(ec);
+        } break;
       }
 
     } else {
@@ -787,25 +792,31 @@ void ClientManagerImpl::processPopResult(const grpc::ClientContext& client_conte
   // process response to result
   ReceiveMessageStatus status;
   switch (response.common().status().code()) {
-  case google::rpc::Code::OK:
-    status = ReceiveMessageStatus::OK;
-    break;
-  case google::rpc::Code::RESOURCE_EXHAUSTED:
-    status = ReceiveMessageStatus::RESOURCE_EXHAUSTED;
-    SPDLOG_WARN("Too many pop requests in broker. Long polling is full in the broker side. BrokerAddress={}",
-                target_host);
-    break;
-  case google::rpc::Code::DEADLINE_EXCEEDED:
-    status = ReceiveMessageStatus::DEADLINE_EXCEEDED;
-    break;
-  case google::rpc::Code::NOT_FOUND:
-    status = ReceiveMessageStatus::NOT_FOUND;
-    break;
-  default:
-    SPDLOG_WARN("Pop response indicates server-side error. BrokerAddress={}, Reason={}", target_host,
-                response.common().DebugString());
-    status = ReceiveMessageStatus::INTERNAL;
-    break;
+    case google::rpc::Code::OK: {
+      status = ReceiveMessageStatus::OK;
+      break;
+    }
+    case google::rpc::Code::RESOURCE_EXHAUSTED: {
+      status = ReceiveMessageStatus::RESOURCE_EXHAUSTED;
+      SPDLOG_WARN("Too many pop requests in broker. Long polling is full in the broker side. BrokerAddress={}",
+                  target_host);
+      break;
+    }
+
+    case google::rpc::Code::DEADLINE_EXCEEDED: {
+      status = ReceiveMessageStatus::DEADLINE_EXCEEDED;
+      break;
+    }
+    case google::rpc::Code::NOT_FOUND: {
+      status = ReceiveMessageStatus::NOT_FOUND;
+      break;
+    }
+    default: {
+      SPDLOG_WARN("Pop response indicates server-side error. BrokerAddress={}, Reason={}", target_host,
+                  response.common().DebugString());
+      status = ReceiveMessageStatus::INTERNAL;
+      break;
+    }
   }
 
   result.sourceHost(target_host);
@@ -846,35 +857,41 @@ void ClientManagerImpl::processPullResult(const grpc::ClientContext& client_cont
   }
   result.sourceHost(target_host);
   switch (response.common().status().code()) {
-  case google::rpc::Code::OK: {
-    assert(!response.messages().empty());
-    result.status_ = ReceiveMessageStatus::OK;
-    for (const auto& item : response.messages()) {
-      MQMessageExt message;
-      if (!wrapMessage(item, message)) {
-        result.status_ = ReceiveMessageStatus::DATA_CORRUPTED;
-        return;
+    case google::rpc::Code::OK: {
+      assert(!response.messages().empty());
+      result.status_ = ReceiveMessageStatus::OK;
+      for (const auto& item : response.messages()) {
+        MQMessageExt message;
+        if (!wrapMessage(item, message)) {
+          result.status_ = ReceiveMessageStatus::DATA_CORRUPTED;
+          return;
+        }
+        result.messages_.emplace_back(message);
       }
-      result.messages_.emplace_back(message);
+      break;
     }
-  } break;
 
-  case google::rpc::Code::DEADLINE_EXCEEDED:
-    result.status_ = ReceiveMessageStatus::DEADLINE_EXCEEDED;
-    break;
+    case google::rpc::Code::DEADLINE_EXCEEDED: {
+      result.status_ = ReceiveMessageStatus::DEADLINE_EXCEEDED;
+      break;
+    }
 
-  case google::rpc::Code::RESOURCE_EXHAUSTED:
-    result.status_ = ReceiveMessageStatus::RESOURCE_EXHAUSTED;
-    break;
+    case google::rpc::Code::RESOURCE_EXHAUSTED: {
+      result.status_ = ReceiveMessageStatus::RESOURCE_EXHAUSTED;
+      break;
+    }
 
-  case google::rpc::Code::OUT_OF_RANGE:
-    result.status_ = ReceiveMessageStatus::OUT_OF_RANGE;
-    result.next_offset_ = response.next_offset();
-    break;
+    case google::rpc::Code::OUT_OF_RANGE: {
+      result.status_ = ReceiveMessageStatus::OUT_OF_RANGE;
+      result.next_offset_ = response.next_offset();
+      break;
+    }
   }
 }
 
-State ClientManagerImpl::state() const { return state_.load(std::memory_order_relaxed); }
+State ClientManagerImpl::state() const {
+  return state_.load(std::memory_order_relaxed);
+}
 
 bool ClientManagerImpl::wrapMessage(const rmq::Message& item, MQMessageExt& message_ext) {
   assert(item.topic().resource_namespace() == resource_namespace_);
@@ -909,57 +926,57 @@ bool ClientManagerImpl::wrapMessage(const rmq::Message& item, MQMessageExt& mess
     body_digest_match = true;
   } else {
     switch (digest.type()) {
-    case rmq::DigestType::CRC32: {
-      std::string checksum;
-      bool success = MixAll::crc32(item.body(), checksum);
-      if (success) {
-        body_digest_match = (digest.checksum() == checksum);
-        if (body_digest_match) {
-          SPDLOG_DEBUG("Message body CRC32 checksum validation passed.");
+      case rmq::DigestType::CRC32: {
+        std::string checksum;
+        bool success = MixAll::crc32(item.body(), checksum);
+        if (success) {
+          body_digest_match = (digest.checksum() == checksum);
+          if (body_digest_match) {
+            SPDLOG_DEBUG("Message body CRC32 checksum validation passed.");
+          } else {
+            SPDLOG_WARN("Body CRC32 checksum validation failed. Actual: {}, expect: {}", checksum, digest.checksum());
+          }
         } else {
-          SPDLOG_WARN("Body CRC32 checksum validation failed. Actual: {}, expect: {}", checksum, digest.checksum());
+          SPDLOG_WARN("Failed to calculate CRC32 checksum. Skip.");
         }
-      } else {
-        SPDLOG_WARN("Failed to calculate CRC32 checksum. Skip.");
+        break;
       }
-      break;
-    }
-    case rmq::DigestType::MD5: {
-      std::string checksum;
-      bool success = MixAll::md5(item.body(), checksum);
-      if (success) {
-        body_digest_match = (digest.checksum() == checksum);
-        if (body_digest_match) {
-          SPDLOG_DEBUG("MD5 checksum validation passed.");
+      case rmq::DigestType::MD5: {
+        std::string checksum;
+        bool success = MixAll::md5(item.body(), checksum);
+        if (success) {
+          body_digest_match = (digest.checksum() == checksum);
+          if (body_digest_match) {
+            SPDLOG_DEBUG("MD5 checksum validation passed.");
+          } else {
+            SPDLOG_WARN("Body MD5 checksum validation failed. Expect: {}, Actual: {}", digest.checksum(), checksum);
+          }
         } else {
-          SPDLOG_WARN("Body MD5 checksum validation failed. Expect: {}, Actual: {}", digest.checksum(), checksum);
+          SPDLOG_WARN("Failed to calculate MD5 digest. Skip.");
+          body_digest_match = true;
         }
-      } else {
-        SPDLOG_WARN("Failed to calculate MD5 digest. Skip.");
+        break;
+      }
+      case rmq::DigestType::SHA1: {
+        std::string checksum;
+        bool success = MixAll::sha1(item.body(), checksum);
+        if (success) {
+          body_digest_match = (checksum == digest.checksum());
+          if (body_digest_match) {
+            SPDLOG_DEBUG("SHA1 checksum validation passed");
+          } else {
+            SPDLOG_WARN("Body SHA1 checksum validation failed. Expect: {}, Actual: {}", digest.checksum(), checksum);
+          }
+        } else {
+          SPDLOG_WARN("Failed to calculate SHA1 digest. Skip.");
+        }
+        break;
+      }
+      default: {
+        SPDLOG_WARN("Unsupported message body digest algorithm");
         body_digest_match = true;
+        break;
       }
-      break;
-    }
-    case rmq::DigestType::SHA1: {
-      std::string checksum;
-      bool success = MixAll::sha1(item.body(), checksum);
-      if (success) {
-        body_digest_match = (checksum == digest.checksum());
-        if (body_digest_match) {
-          SPDLOG_DEBUG("SHA1 checksum validation passed");
-        } else {
-          SPDLOG_WARN("Body SHA1 checksum validation failed. Expect: {}, Actual: {}", digest.checksum(), checksum);
-        }
-      } else {
-        SPDLOG_WARN("Failed to calculate SHA1 digest. Skip.");
-      }
-      break;
-    }
-    default: {
-      SPDLOG_WARN("Unsupported message body digest algorithm");
-      body_digest_match = true;
-      break;
-    }
     }
   }
 
@@ -971,20 +988,20 @@ bool ClientManagerImpl::wrapMessage(const rmq::Message& item, MQMessageExt& mess
 
   // Body encoding
   switch (system_attributes.body_encoding()) {
-  case rmq::Encoding::GZIP: {
-    std::string uncompressed;
-    UtilAll::uncompress(item.body(), uncompressed);
-    message_ext.setBody(uncompressed);
-    break;
-  }
-  case rmq::Encoding::IDENTITY: {
-    message_ext.setBody(item.body());
-    break;
-  }
-  default: {
-    SPDLOG_WARN("Unsupported encoding algorithm");
-    break;
-  }
+    case rmq::Encoding::GZIP: {
+      std::string uncompressed;
+      UtilAll::uncompress(item.body(), uncompressed);
+      message_ext.setBody(uncompressed);
+      break;
+    }
+    case rmq::Encoding::IDENTITY: {
+      message_ext.setBody(item.body());
+      break;
+    }
+    default: {
+      SPDLOG_WARN("Unsupported encoding algorithm");
+      break;
+    }
   }
 
   timeval tv{};
@@ -992,22 +1009,22 @@ bool ClientManagerImpl::wrapMessage(const rmq::Message& item, MQMessageExt& mess
   // Message-type
   MessageType message_type;
   switch (system_attributes.message_type()) {
-  case rmq::MessageType::NORMAL:
-    message_type = MessageType::NORMAL;
-    break;
-  case rmq::MessageType::FIFO:
-    message_type = MessageType::FIFO;
-    break;
-  case rmq::MessageType::DELAY:
-    message_type = MessageType::DELAY;
-    break;
-  case rmq::MessageType::TRANSACTION:
-    message_type = MessageType::TRANSACTION;
-    break;
-  default:
-    SPDLOG_WARN("Unknown message type. Treat it as normal message");
-    message_type = MessageType::NORMAL;
-    break;
+    case rmq::MessageType::NORMAL:
+      message_type = MessageType::NORMAL;
+      break;
+    case rmq::MessageType::FIFO:
+      message_type = MessageType::FIFO;
+      break;
+    case rmq::MessageType::DELAY:
+      message_type = MessageType::DELAY;
+      break;
+    case rmq::MessageType::TRANSACTION:
+      message_type = MessageType::TRANSACTION;
+      break;
+    default:
+      SPDLOG_WARN("Unknown message type. Treat it as normal message");
+      message_type = MessageType::NORMAL;
+      break;
   }
   MessageAccessor::setMessageType(message_ext, message_type);
 
@@ -1034,20 +1051,20 @@ bool ClientManagerImpl::wrapMessage(const rmq::Message& item, MQMessageExt& mess
 
   // Process one-of: delivery-timestamp and delay-level.
   switch (system_attributes.timed_delivery_case()) {
-  case rmq::SystemAttribute::TimedDeliveryCase::kDelayLevel: {
-    message_ext.setDelayTimeLevel(system_attributes.delay_level());
-    break;
-  }
+    case rmq::SystemAttribute::TimedDeliveryCase::kDelayLevel: {
+      message_ext.setDelayTimeLevel(system_attributes.delay_level());
+      break;
+    }
 
-  case rmq::SystemAttribute::TimedDeliveryCase::kDeliveryTimestamp: {
-    tv.tv_sec = system_attributes.delivery_timestamp().seconds();
-    tv.tv_usec = system_attributes.delivery_timestamp().nanos();
-    MessageAccessor::setDeliveryTimestamp(message_ext, absl::TimeFromTimeval(tv));
-    break;
-  }
+    case rmq::SystemAttribute::TimedDeliveryCase::kDeliveryTimestamp: {
+      tv.tv_sec = system_attributes.delivery_timestamp().seconds();
+      tv.tv_usec = system_attributes.delivery_timestamp().nanos();
+      MessageAccessor::setDeliveryTimestamp(message_ext, absl::TimeFromTimeval(tv));
+      break;
+    }
 
-  default:
-    break;
+    default:
+      break;
   }
 
   // Partition-id
@@ -1089,10 +1106,12 @@ bool ClientManagerImpl::wrapMessage(const rmq::Message& item, MQMessageExt& mess
   return true;
 }
 
-Scheduler& ClientManagerImpl::getScheduler() { return scheduler_; }
+Scheduler& ClientManagerImpl::getScheduler() {
+  return scheduler_;
+}
 
 void ClientManagerImpl::ack(const std::string& target, const Metadata& metadata, const AckMessageRequest& request,
-                            std::chrono::milliseconds timeout, const std::function<void(bool)>& cb) {
+                            std::chrono::milliseconds timeout, const std::function<void(const std::error_code&)>& cb) {
   std::string target_host(target.data(), target.length());
   SPDLOG_DEBUG("Prepare to ack message against {} asynchronously. AckMessageRequest: {}", target_host,
                request.DebugString());
@@ -1108,12 +1127,40 @@ void ClientManagerImpl::ack(const std::string& target, const Metadata& metadata,
 
   // TODO: Use capture by move and pass-by-value paradigm when C++ 14 is available.
   auto callback = [request, cb](const InvocationContext<AckMessageResponse>* invocation_context) {
-    if (invocation_context->status.ok() &&
-        google::rpc::Code::OK == invocation_context->response.common().status().code()) {
-      cb(true);
-    } else {
-      cb(false);
+    std::error_code ec;
+    if (!invocation_context->status.ok()) {
+      ec = ErrorCode::RequestTimeout;
+      cb(ec);
+      return;
     }
+
+    const auto& common = invocation_context->response.common();
+    switch (common.status().code()) {
+      case google::rpc::Code::OK: {
+        SPDLOG_DEBUG("Ack OK. {}", common.status().message());
+      } break;
+      case google::rpc::Code::UNAUTHENTICATED: {
+        SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+        ec = ErrorCode::Unauthorized;
+      } break;
+      case google::rpc::Code::PERMISSION_DENIED: {
+        SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+        ec = ErrorCode::Forbidden;
+      } break;
+      case google::rpc::Code::INVALID_ARGUMENT: {
+        SPDLOG_WARN("InvalidArgument: {}", common.status().message());
+        ec = ErrorCode::BadRequest;
+      } break;
+      case google::rpc::Code::INTERNAL: {
+        SPDLOG_WARN("InternalServerError: {}", common.status().message());
+        ec = ErrorCode::InternalServerError;
+      } break;
+      default: {
+        SPDLOG_WARN("NotImplement: please upgrade SDK to latest release");
+        ec = ErrorCode::NotImplemented;
+      } break;
+    }
+    cb(ec);
   };
   invocation_context->callback = callback;
   client->asyncAck(request, invocation_context);
@@ -1179,25 +1226,25 @@ void ClientManagerImpl::endTransaction(
 
     const auto& common = invocation_context->response.common();
     switch (common.status().code()) {
-    case google::rpc::Code::OK: {
-      SPDLOG_DEBUG("endTransaction completed OK. Response: {}", invocation_context->response.DebugString());
-    } break;
-    case google::rpc::Code::UNAUTHENTICATED: {
-      SPDLOG_WARN("Unauthenticated: {}", common.status().message());
-      ec = ErrorCode::Unauthorized;
-    } break;
-    case google::rpc::Code::PERMISSION_DENIED: {
-      SPDLOG_WARN("PermissionDenied: {}", common.status().message());
-      ec = ErrorCode::Forbidden;
-    } break;
-    case google::rpc::INTERNAL: {
-      SPDLOG_WARN("InternalServerError: {}", common.status().message());
-      ec = ErrorCode::InternalServerError;
-    } break;
-    default: {
-      SPDLOG_WARN("NotImplemented: please upgrade SDK to latest release. {}", common.status().message());
-      ec = ErrorCode::NotImplemented;
-    }
+      case google::rpc::Code::OK: {
+        SPDLOG_DEBUG("endTransaction completed OK. Response: {}", invocation_context->response.DebugString());
+      } break;
+      case google::rpc::Code::UNAUTHENTICATED: {
+        SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+        ec = ErrorCode::Unauthorized;
+      } break;
+      case google::rpc::Code::PERMISSION_DENIED: {
+        SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+        ec = ErrorCode::Forbidden;
+      } break;
+      case google::rpc::INTERNAL: {
+        SPDLOG_WARN("InternalServerError: {}", common.status().message());
+        ec = ErrorCode::InternalServerError;
+      } break;
+      default: {
+        SPDLOG_WARN("NotImplemented: please upgrade SDK to latest release. {}", common.status().message());
+        ec = ErrorCode::NotImplemented;
+      }
     }
     cb(ec, invocation_context->response);
   };
@@ -1271,30 +1318,30 @@ void ClientManagerImpl::queryOffset(const std::string& target_host, const Metada
 
     const auto& common = invocation_context->response.common();
     switch (common.status().code()) {
-    case google::rpc::Code::OK: {
-      SPDLOG_DEBUG("Query offset from server[host={}] OK", invocation_context->remote_address);
-      cb(ec, invocation_context->response);
-    } break;
-    case google::rpc::Code::UNAUTHENTICATED: {
-      SPDLOG_WARN("Unauthenticated: {}", common.status().message());
-      ec = ErrorCode::Unauthorized;
-      cb(ec, invocation_context->response);
-    } break;
-    case google::rpc::Code::PERMISSION_DENIED: {
-      SPDLOG_WARN("PermissionDenied: {}", common.status().message());
-      ec = ErrorCode::Forbidden;
-      cb(ec, invocation_context->response);
-    } break;
-    case google::rpc::Code::INTERNAL: {
-      SPDLOG_WARN("InternalServerError: {}", common.status().message());
-      ec = ErrorCode::InternalServerError;
-      cb(ec, invocation_context->response);
-    } break;
-    default: {
-      SPDLOG_WARN("NotImplemented: please upgrade SDK to the latest release");
-      ec = ErrorCode::NotImplemented;
-      cb(ec, invocation_context->response);
-    }
+      case google::rpc::Code::OK: {
+        SPDLOG_DEBUG("Query offset from server[host={}] OK", invocation_context->remote_address);
+        cb(ec, invocation_context->response);
+      } break;
+      case google::rpc::Code::UNAUTHENTICATED: {
+        SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+        ec = ErrorCode::Unauthorized;
+        cb(ec, invocation_context->response);
+      } break;
+      case google::rpc::Code::PERMISSION_DENIED: {
+        SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+        ec = ErrorCode::Forbidden;
+        cb(ec, invocation_context->response);
+      } break;
+      case google::rpc::Code::INTERNAL: {
+        SPDLOG_WARN("InternalServerError: {}", common.status().message());
+        ec = ErrorCode::InternalServerError;
+        cb(ec, invocation_context->response);
+      } break;
+      default: {
+        SPDLOG_WARN("NotImplemented: please upgrade SDK to the latest release");
+        ec = ErrorCode::NotImplemented;
+        cb(ec, invocation_context->response);
+      }
     }
   };
   invocation_context->callback = callback;

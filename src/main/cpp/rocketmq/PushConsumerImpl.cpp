@@ -19,9 +19,12 @@
 
 ROCKETMQ_NAMESPACE_BEGIN
 
-PushConsumerImpl::PushConsumerImpl(absl::string_view group_name) : ClientImpl(group_name) {}
+PushConsumerImpl::PushConsumerImpl(absl::string_view group_name) : ClientImpl(group_name) {
+}
 
-PushConsumerImpl::~PushConsumerImpl() { SPDLOG_DEBUG("DefaultMQPushConsumerImpl is destructed"); }
+PushConsumerImpl::~PushConsumerImpl() {
+  SPDLOG_DEBUG("DefaultMQPushConsumerImpl is destructed");
+}
 
 void PushConsumerImpl::start() {
   ClientImpl::start();
@@ -352,43 +355,45 @@ bool PushConsumerImpl::receiveMessage(const MQMessageQueue& message_queue, const
   }
 
   switch (receive_message_policy_) {
-  case ReceiveMessageAction::PULL: {
-    int64_t offset = -1;
-    if (!offset_store_ || !offset_store_->readOffset(message_queue, offset)) {
-      // Query latest offset from server.
-      QueryOffsetRequest request;
-      request.mutable_partition()->mutable_topic()->set_resource_namespace(resource_namespace_);
-      request.mutable_partition()->mutable_topic()->set_name(message_queue.getTopic());
-      request.mutable_partition()->set_id(message_queue.getQueueId());
-      request.mutable_partition()->mutable_broker()->set_name(message_queue.getBrokerName());
-      request.set_policy(rmq::QueryOffsetPolicy::END);
-      absl::flat_hash_map<std::string, std::string> metadata;
-      Signature::sign(this, metadata);
-      auto callback = [broker_host, message_queue, process_queue_ptr](const std::error_code& ec,
-                                                                      const QueryOffsetResponse& response) {
-        if (ec) {
-          SPDLOG_WARN("Failed to acquire latest offset for partition[{}] from server[host={}]. Cause: {}",
-                      message_queue.simpleName(), broker_host, ec.message());
-        } else {
-          assert(response.offset() >= 0);
-          process_queue_ptr->nextOffset(response.offset());
-          process_queue_ptr->receiveMessage();
-        }
-      };
-      client_manager_->queryOffset(broker_host, metadata, request, absl::ToChronoMilliseconds(io_timeout_), callback);
+    case ReceiveMessageAction::PULL: {
+      int64_t offset = -1;
+      if (!offset_store_ || !offset_store_->readOffset(message_queue, offset)) {
+        // Query latest offset from server.
+        QueryOffsetRequest request;
+        request.mutable_partition()->mutable_topic()->set_resource_namespace(resource_namespace_);
+        request.mutable_partition()->mutable_topic()->set_name(message_queue.getTopic());
+        request.mutable_partition()->set_id(message_queue.getQueueId());
+        request.mutable_partition()->mutable_broker()->set_name(message_queue.getBrokerName());
+        request.set_policy(rmq::QueryOffsetPolicy::END);
+        absl::flat_hash_map<std::string, std::string> metadata;
+        Signature::sign(this, metadata);
+        auto callback = [broker_host, message_queue, process_queue_ptr](const std::error_code& ec,
+                                                                        const QueryOffsetResponse& response) {
+          if (ec) {
+            SPDLOG_WARN("Failed to acquire latest offset for partition[{}] from server[host={}]. Cause: {}",
+                        message_queue.simpleName(), broker_host, ec.message());
+          } else {
+            assert(response.offset() >= 0);
+            process_queue_ptr->nextOffset(response.offset());
+            process_queue_ptr->receiveMessage();
+          }
+        };
+        client_manager_->queryOffset(broker_host, metadata, request, absl::ToChronoMilliseconds(io_timeout_), callback);
+      }
+      break;
     }
-    break;
-  }
-  case ReceiveMessageAction::POLLING:
-    process_queue_ptr->receiveMessage();
-    break;
+    case ReceiveMessageAction::POLLING:
+      process_queue_ptr->receiveMessage();
+      break;
   }
   return true;
 }
 
-std::shared_ptr<ConsumeMessageService> PushConsumerImpl::getConsumeMessageService() { return consume_message_service_; }
+std::shared_ptr<ConsumeMessageService> PushConsumerImpl::getConsumeMessageService() {
+  return consume_message_service_;
+}
 
-void PushConsumerImpl::ack(const MQMessageExt& msg, const std::function<void(bool)>& callback) {
+void PushConsumerImpl::ack(const MQMessageExt& msg, const std::function<void(const std::error_code&)>& callback) {
   const std::string& target_host = MessageAccessor::targetEndpoint(msg);
   assert(!target_host.empty());
   SPDLOG_DEBUG("Prepare to send ack to broker. BrokerAddress={}, topic={}, queueId={}, msgId={}", target_host,
@@ -457,7 +462,9 @@ void PushConsumerImpl::wrapAckMessageRequest(const MQMessageExt& msg, AckMessage
   request.set_receipt_handle(msg.receiptHandle());
 }
 
-uint32_t PushConsumerImpl::consumeThreadPoolSize() const { return consume_thread_pool_size_; }
+uint32_t PushConsumerImpl::consumeThreadPoolSize() const {
+  return consume_thread_pool_size_;
+}
 
 void PushConsumerImpl::consumeThreadPoolSize(int thread_pool_size) {
   if (thread_pool_size >= 1) {
@@ -465,7 +472,9 @@ void PushConsumerImpl::consumeThreadPoolSize(int thread_pool_size) {
   }
 }
 
-uint32_t PushConsumerImpl::consumeBatchSize() const { return consume_batch_size_; }
+uint32_t PushConsumerImpl::consumeBatchSize() const {
+  return consume_batch_size_;
+}
 
 void PushConsumerImpl::consumeBatchSize(uint32_t consume_batch_size) {
 
@@ -548,12 +557,12 @@ void PushConsumerImpl::prepareHeartbeatData(HeartbeatRequest& request) {
 
   if (message_listener_) {
     switch (message_listener_->listenerType()) {
-    case MessageListenerType::FIFO:
-      request.set_fifo_flag(true);
-      break;
-    case MessageListenerType::STANDARD:
-      request.set_fifo_flag(false);
-      break;
+      case MessageListenerType::FIFO:
+        request.set_fifo_flag(true);
+        break;
+      case MessageListenerType::STANDARD:
+        request.set_fifo_flag(false);
+        break;
     }
   }
 
@@ -562,14 +571,14 @@ void PushConsumerImpl::prepareHeartbeatData(HeartbeatRequest& request) {
   consumer_data->mutable_group()->set_resource_namespace(resource_namespace_);
 
   switch (message_model_) {
-  case MessageModel::BROADCASTING:
-    consumer_data->set_consume_model(rmq::ConsumeModel::BROADCASTING);
-    break;
-  case MessageModel::CLUSTERING:
-    consumer_data->set_consume_model(rmq::ConsumeModel::CLUSTERING);
-    break;
-  default:
-    break;
+    case MessageModel::BROADCASTING:
+      consumer_data->set_consume_model(rmq::ConsumeModel::BROADCASTING);
+      break;
+    case MessageModel::CLUSTERING:
+      consumer_data->set_consume_model(rmq::ConsumeModel::CLUSTERING);
+      break;
+    default:
+      break;
   }
 
   auto subscriptions = consumer_data->mutable_subscriptions();
@@ -582,12 +591,12 @@ void PushConsumerImpl::prepareHeartbeatData(HeartbeatRequest& request) {
       subscription->mutable_topic()->set_name(entry.first);
       subscription->mutable_expression()->set_expression(entry.second.content_);
       switch (entry.second.type_) {
-      case ExpressionType::TAG:
-        subscription->mutable_expression()->set_type(rmq::FilterType::TAG);
-        break;
-      case ExpressionType::SQL92:
-        subscription->mutable_expression()->set_type(rmq::FilterType::SQL);
-        break;
+        case ExpressionType::TAG:
+          subscription->mutable_expression()->set_type(rmq::FilterType::TAG);
+          break;
+        case ExpressionType::SQL92:
+          subscription->mutable_expression()->set_type(rmq::FilterType::SQL);
+          break;
       }
       subscriptions->AddAllocated(subscription);
     }

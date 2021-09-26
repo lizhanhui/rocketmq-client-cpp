@@ -137,7 +137,7 @@ public:
    * @param request Ack message request.
    */
   void ack(const std::string& target_host, const Metadata& metadata, const AckMessageRequest& request,
-           std::chrono::milliseconds timeout, const std::function<void(bool)>& cb) override;
+           std::chrono::milliseconds timeout, const std::function<void(const std::error_code&)>& cb) override;
 
   void nack(const std::string& target_host, const Metadata& metadata, const NackMessageRequest& request,
             std::chrono::milliseconds timeout, const std::function<void(bool)>& callback) override;
@@ -181,7 +181,9 @@ public:
                                const NotifyClientTerminationRequest& request,
                                std::chrono::milliseconds timeout) override;
 
-  void trace(bool trace) { trace_ = trace; }
+  void trace(bool trace) {
+    trace_ = trace;
+  }
 
   void heartbeat(const std::string& target_host, const Metadata& metadata, const HeartbeatRequest& request,
                  std::chrono::milliseconds timeout,

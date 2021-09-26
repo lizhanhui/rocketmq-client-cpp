@@ -44,7 +44,7 @@ public:
   virtual bool wrapMessage(const rmq::Message& item, MQMessageExt& message_ext) = 0;
 
   virtual void ack(const std::string& target_host, const Metadata& metadata, const AckMessageRequest& request,
-                   std::chrono::milliseconds timeout, const std::function<void(bool)>& cb) = 0;
+                   std::chrono::milliseconds timeout, const std::function<void(const std::error_code&)>& cb) = 0;
 
   virtual void nack(const std::string& target_host, const Metadata& metadata, const NackMessageRequest& request,
                     std::chrono::milliseconds timeout, const std::function<void(bool)>& callback) = 0;

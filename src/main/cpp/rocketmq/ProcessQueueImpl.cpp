@@ -78,12 +78,12 @@ void ProcessQueueImpl::receiveMessage() {
 
   auto policy = consumer->receiveMessageAction();
   switch (policy) {
-  case ReceiveMessageAction::POLLING:
-    popMessage();
-    break;
-  case ReceiveMessageAction::PULL:
-    pullMessage();
-    break;
+    case ReceiveMessageAction::POLLING:
+      popMessage();
+      break;
+    case ReceiveMessageAction::PULL:
+      pullMessage();
+      break;
   }
 }
 
@@ -121,47 +121,47 @@ void ProcessQueueImpl::pullMessage() {
       const auto& common = invocation_context->response.common();
 
       switch (common.status().code()) {
-      case google::rpc::Code::OK: {
-        ReceiveMessageResult result;
-        client_manager_->processPullResult(invocation_context->context, invocation_context->response, result,
-                                           invocation_context->remote_address);
-        receive_callback_->onSuccess(result);
-      } break;
-      case google::rpc::Code::PERMISSION_DENIED: {
-        SPDLOG_WARN("PermissionDenied: {}", common.status().message());
-        std::error_code ec = ErrorCode::Forbidden;
-        receive_callback_->onFailure(ec);
-      } break;
-      case google::rpc::Code::UNAUTHENTICATED: {
-        SPDLOG_WARN("Unauthenticated: {}", common.status().message());
-        std::error_code ec = ErrorCode::Unauthorized;
-        receive_callback_->onFailure(ec);
-      } break;
-      case google::rpc::Code::DEADLINE_EXCEEDED: {
-        SPDLOG_WARN("DeadlineExceeded: {}", common.status().message());
-        std::error_code ec = ErrorCode::GatewayTimeout;
-        receive_callback_->onFailure(ec);
-      } break;
-      case google::rpc::Code::INVALID_ARGUMENT: {
-        SPDLOG_WARN("InvalidArgument: {}", common.status().message());
-        std::error_code ec = ErrorCode::BadRequest;
-        receive_callback_->onFailure(ec);
-      } break;
-      case google::rpc::Code::FAILED_PRECONDITION: {
-        SPDLOG_WARN("FailedPrecondition: {}", common.status().message());
-        std::error_code ec = ErrorCode::PreconditionRequired;
-        receive_callback_->onFailure(ec);
-      } break;
-      case google::rpc::Code::INTERNAL: {
-        SPDLOG_WARN("InternalServerError: {}", common.status().message());
-        std::error_code ec = ErrorCode::InternalServerError;
-        receive_callback_->onFailure(ec);
-      } break;
-      default: {
-        SPDLOG_WARN("Unimplemented: Please upgrade to use latest SDK release");
-        std::error_code ec = ErrorCode::NotImplemented;
-        receive_callback_->onFailure(ec);
-      } break;
+        case google::rpc::Code::OK: {
+          ReceiveMessageResult result;
+          client_manager_->processPullResult(invocation_context->context, invocation_context->response, result,
+                                             invocation_context->remote_address);
+          receive_callback_->onSuccess(result);
+        } break;
+        case google::rpc::Code::PERMISSION_DENIED: {
+          SPDLOG_WARN("PermissionDenied: {}", common.status().message());
+          std::error_code ec = ErrorCode::Forbidden;
+          receive_callback_->onFailure(ec);
+        } break;
+        case google::rpc::Code::UNAUTHENTICATED: {
+          SPDLOG_WARN("Unauthenticated: {}", common.status().message());
+          std::error_code ec = ErrorCode::Unauthorized;
+          receive_callback_->onFailure(ec);
+        } break;
+        case google::rpc::Code::DEADLINE_EXCEEDED: {
+          SPDLOG_WARN("DeadlineExceeded: {}", common.status().message());
+          std::error_code ec = ErrorCode::GatewayTimeout;
+          receive_callback_->onFailure(ec);
+        } break;
+        case google::rpc::Code::INVALID_ARGUMENT: {
+          SPDLOG_WARN("InvalidArgument: {}", common.status().message());
+          std::error_code ec = ErrorCode::BadRequest;
+          receive_callback_->onFailure(ec);
+        } break;
+        case google::rpc::Code::FAILED_PRECONDITION: {
+          SPDLOG_WARN("FailedPrecondition: {}", common.status().message());
+          std::error_code ec = ErrorCode::PreconditionRequired;
+          receive_callback_->onFailure(ec);
+        } break;
+        case google::rpc::Code::INTERNAL: {
+          SPDLOG_WARN("InternalServerError: {}", common.status().message());
+          std::error_code ec = ErrorCode::InternalServerError;
+          receive_callback_->onFailure(ec);
+        } break;
+        default: {
+          SPDLOG_WARN("Unimplemented: Please upgrade to use latest SDK release");
+          std::error_code ec = ErrorCode::NotImplemented;
+          receive_callback_->onFailure(ec);
+        } break;
       }
     } else {
       SPDLOG_WARN("Failed to receive valid gRPC response from server. gRPC-status[code={}, message={}]",
@@ -194,13 +194,14 @@ void ProcessQueueImpl::cacheMessages(const std::vector<MQMessageExt>& messages) 
       const std::string& msg_id = message.getMsgId();
       if (!filter_expression_.accept(message)) {
         const std::string& topic = message.getTopic();
-        auto callback = [topic, msg_id](bool ok) {
-          if (ok) {
+        auto callback = [topic, msg_id](const std::error_code& ec) {
+          if (ec) {
+            SPDLOG_WARN(
+                "Failed to ack message[Topic={}, MsgId={}] directly as it fails to pass filter expression. Cause: {}",
+                topic, msg_id, ec.message());
+          } else {
             SPDLOG_DEBUG("Ack message[Topic={}, MsgId={}] directly as it fails to pass filter expression", topic,
                          msg_id);
-          } else {
-            SPDLOG_WARN("Failed to ack message[Topic={}, MsgId={}] directly as it fails to pass filter expression",
-                        topic, msg_id);
           }
         };
         consumer->ack(message, callback);
@@ -281,14 +282,14 @@ void ProcessQueueImpl::wrapFilterExpression(rmq::FilterExpression* filter_expres
   if (optional.has_value()) {
     auto expression = optional.value();
     switch (expression.type_) {
-    case TAG:
-      filter_expression->set_type(rmq::FilterType::TAG);
-      filter_expression->set_expression(expression.content_);
-      break;
-    case SQL92:
-      filter_expression->set_type(rmq::FilterType::SQL);
-      filter_expression->set_expression(expression.content_);
-      break;
+      case TAG:
+        filter_expression->set_type(rmq::FilterType::TAG);
+        filter_expression->set_expression(expression.content_);
+        break;
+      case SQL92:
+        filter_expression->set_type(rmq::FilterType::SQL);
+        filter_expression->set_expression(expression.content_);
+        break;
     }
   } else {
     filter_expression->set_type(rmq::FilterType::TAG);
@@ -339,12 +340,20 @@ void ProcessQueueImpl::wrapPullMessageRequest(absl::flat_hash_map<std::string, s
   wrapFilterExpression(request.mutable_filter_expression());
 }
 
-std::weak_ptr<PushConsumer> ProcessQueueImpl::getConsumer() { return consumer_; }
+std::weak_ptr<PushConsumer> ProcessQueueImpl::getConsumer() {
+  return consumer_;
+}
 
-std::shared_ptr<ClientManager> ProcessQueueImpl::getClientManager() { return client_manager_; }
+std::shared_ptr<ClientManager> ProcessQueueImpl::getClientManager() {
+  return client_manager_;
+}
 
-MQMessageQueue ProcessQueueImpl::getMQMessageQueue() { return message_queue_; }
+MQMessageQueue ProcessQueueImpl::getMQMessageQueue() {
+  return message_queue_;
+}
 
-const FilterExpression& ProcessQueueImpl::getFilterExpression() const { return filter_expression_; }
+const FilterExpression& ProcessQueueImpl::getFilterExpression() const {
+  return filter_expression_;
+}
 
 ROCKETMQ_NAMESPACE_END

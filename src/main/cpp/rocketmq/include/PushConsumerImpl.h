@@ -100,7 +100,7 @@ public:
 
   std::shared_ptr<ConsumeMessageService> getConsumeMessageService() override;
 
-  void ack(const MQMessageExt& msg, const std::function<void(bool)>& callback) override;
+  void ack(const MQMessageExt& msg, const std::function<void(const std::error_code&)>& callback) override;
 
   /**
    * Negative acknowledge the given message; Refer to
