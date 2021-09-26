@@ -4,7 +4,9 @@
 #include "Signature.h"
 #include "apache/rocketmq/v1/definition.pb.h"
 #include "rocketmq/ErrorCode.h"
+#include "rocketmq/MQClientException.h"
 #include "rocketmq/MessageModel.h"
+#include <exception>
 #include <system_error>
 
 ROCKETMQ_NAMESPACE_BEGIN
@@ -45,15 +47,21 @@ std::future<std::vector<MQMessageQueue>> PullConsumerImpl::queuesFor(const std::
       return promise->get_future();
     }
   }
+
   auto callback = [promise](const std::error_code& ec, const TopicRouteDataPtr& route) {
     if (ec) {
-      std::vector<MQMessageQueue> message_queues;
-      for (const auto& partition : route->partitions()) {
-        message_queues.emplace_back(partition.asMessageQueue());
-      }
-      promise->set_value(message_queues);
+      MQClientException e(ec.message(), ec.value(), __FILE__, __LINE__);
+      promise->set_exception(std::make_exception_ptr(e));
+      return;
     }
+
+    std::vector<MQMessageQueue> message_queues;
+    for (const auto& partition : route->partitions()) {
+      message_queues.emplace_back(partition.asMessageQueue());
+    }
+    promise->set_value(message_queues);
   };
+
   getRouteFor(topic, callback);
   return promise->get_future();
 }
